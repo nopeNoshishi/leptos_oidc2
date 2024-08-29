@@ -27,6 +27,7 @@
 use std::sync::Arc;
 
 use chrono::Local;
+use codee::string::JsonSerdeCodec;
 use jsonwebtoken::{decode, jwk::Jwk, DecodingKey};
 use leptos::{
     create_effect, create_local_resource, expect_context, provide_context, spawn_local, Resource,
@@ -35,9 +36,7 @@ use leptos::{
 use leptos_router::{use_navigate, use_query, NavigateOptions};
 use leptos_use::{
     storage::{use_local_storage, use_session_storage},
-    use_timeout_fn,
-    utils::JsonCodec,
-    UseTimeoutFnReturn,
+    use_timeout_fn, UseTimeoutFnReturn,
 };
 use oauth2::{PkceCodeChallenge, PkceCodeVerifier};
 use response::{CallbackResponse, SuccessCallbackResponse, TokenResponse};
@@ -169,7 +168,7 @@ impl Auth {
         }
 
         let (code_verifier, set_code_verifier, remove_code_verifier) =
-            use_session_storage::<Option<String>, JsonCodec>(CODE_VERIFIER_KEY);
+            use_session_storage::<Option<String>, JsonSerdeCodec>(CODE_VERIFIER_KEY);
 
         match &self.parameters.challenge {
             Challenge::S256 | Challenge::Plain => {
@@ -376,7 +375,7 @@ fn init_auth_resource(parameters: AuthParameters, issuer: IssuerResource) -> Aut
         move || {
             (
                 issuer.get(),
-                use_local_storage::<Option<TokenStorage>, JsonCodec>(LOCAL_STORAGE_KEY)
+                use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY)
                     .0
                     .get(),
             )
@@ -390,7 +389,9 @@ fn init_auth_resource(parameters: AuthParameters, issuer: IssuerResource) -> Aut
                     };
 
                     let (_, set_local_storage, remove_local_storage) =
-                        use_local_storage::<Option<TokenStorage>, JsonCodec>(LOCAL_STORAGE_KEY);
+                        use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(
+                            LOCAL_STORAGE_KEY,
+                        );
 
                     let auth_response = use_query::<CallbackResponse>();
                     match auth_response.get_untracked() {
@@ -486,9 +487,11 @@ fn create_handle_refresh_effect(
                         .map(Option::Some)
                     {
                         Ok(token_storage) => {
-                            use_local_storage::<Option<TokenStorage>, JsonCodec>(LOCAL_STORAGE_KEY)
-                                .1
-                                .update(|u| *u = token_storage);
+                            use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(
+                                LOCAL_STORAGE_KEY,
+                            )
+                            .1
+                            .update(|u| *u = token_storage);
                         }
                         Err(error) => {
                             resource.update(|u| *u = Some(Err(error)));
@@ -526,7 +529,7 @@ async fn fetch_token(
     }
 
     let (code_verifier, _, remove_code_verifier) =
-        use_session_storage::<Option<String>, JsonCodec>(CODE_VERIFIER_KEY);
+        use_session_storage::<Option<String>, JsonSerdeCodec>(CODE_VERIFIER_KEY);
 
     if let Some(code_verifier) = code_verifier.get_untracked() {
         body = body.push_param_body("code_verifier", code_verifier);

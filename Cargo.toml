@@ -24,10 +24,11 @@ name = "leptos_oidc"
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "wasmbind"] }
+codee = { version = "0.2", features = ["json_serde"] }
 jsonwebtoken = { version = "9.3", default-features = false }
 jwt = { version = "0.16", default-features = false }
 leptos = { version = "0.6", default-features = false }
-leptos-use = { version = "0.10", default-features = false, features = ["serde"] }
+leptos-use = { version = "0.13", default-features = false, features = ["storage", "use_timeout_fn"] }
 leptos_router = { version = "0.6", default-features = false }
 oauth2 = { version = "4.4.2", default-features = false, features = ["pkce-plain"] }
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
