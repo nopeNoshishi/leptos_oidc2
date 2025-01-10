@@ -21,8 +21,7 @@
 * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 * SOFTWARE.
 */
-
-use leptos_router::{Params, ParamsError, ParamsMap};
+use leptos_router::params::{Params, ParamsError, ParamsMap};
 use serde::{Deserialize, Serialize};
 
 /// An enumeration representing different callback responses during the
@@ -85,7 +84,7 @@ impl Params for SuccessCallbackResponse {
     fn from_map(map: &ParamsMap) -> Result<Self, ParamsError> {
         if let (session_state, Some(code)) = (map.get("session_state"), map.get("code")) {
             return Ok(SuccessCallbackResponse {
-                session_state: session_state.cloned(),
+                session_state: session_state.clone(),
                 code: code.clone(),
             });
         }

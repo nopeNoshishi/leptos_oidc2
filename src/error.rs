@@ -41,7 +41,7 @@ pub enum AuthError {
 
     /// An error related to handling parameters.
     #[error("params error: {0}")]
-    Params(#[from] leptos_router::ParamsError),
+    Params(#[from] leptos_router::params::ParamsError),
 
     /// An error related to the serialization or deserialization of JSON data.
     #[error("failed to serialize/deserialilze json: {0}")]

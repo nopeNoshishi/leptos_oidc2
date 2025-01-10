@@ -21,12 +21,9 @@
 * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 * SOFTWARE.
 */
-
-use leptos::{
-    component, expect_context, view, AttributeValue, Children, ChildrenFn, IntoView, Show,
-    Transition, ViewFn,
-};
-
+use leptos::attr::AttributeValue;
+use leptos::prelude::*;
+use leptos::tachys::html::class::IntoClass;
 use crate::Auth;
 
 /// A transparent component representing authenticated user status.
@@ -36,20 +33,22 @@ use crate::Auth;
 #[component(transparent)]
 pub fn Authenticated(
     children: ChildrenFn,
-    #[prop(optional, into)] loading: ViewFn,
+    #[prop(optional, into)] loading: ViewFnOnce,
     #[prop(optional, into)] unauthenticated: ViewFn,
 ) -> impl IntoView {
     let auth = expect_context::<Auth>();
     let unauthenticated = move || unauthenticated.run();
     let authenticated = move || auth.authenticated();
-
+    let children = StoredValue::new(children);
+    
     view! {
         <Transition fallback=loading>
             <Show
                 when=authenticated.clone()
                 fallback=unauthenticated.clone()
-                children=children.clone()
-            />
+            >
+                { children.read_value()() }
+            </Show>
         </Transition>
     }
 }
@@ -93,7 +92,7 @@ pub fn AuthLoaded(children: ChildrenFn, #[prop(optional, into)] fallback: ViewFn
 #[component(transparent)]
 pub fn LoginLink(
     children: Children,
-    #[prop(optional, into)] class: Option<AttributeValue>,
+    #[prop(optional, into)] class: Option<impl IntoClass>,
 ) -> impl IntoView {
     let auth = expect_context::<Auth>();
     let login_url = move || auth.login_url();
@@ -111,7 +110,7 @@ pub fn LoginLink(
 #[component(transparent)]
 pub fn LogoutLink(
     children: Children,
-    #[prop(optional, into)] class: Option<AttributeValue>,
+    #[prop(optional, into)] class: Option<impl IntoClass>,
 ) -> impl IntoView {
     let auth = expect_context::<Auth>();
     let logout_url = move || auth.logout_url();

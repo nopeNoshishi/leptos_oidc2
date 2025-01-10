@@ -29,11 +29,11 @@ use std::sync::Arc;
 use chrono::Local;
 use codee::string::JsonSerdeCodec;
 use jsonwebtoken::{decode, jwk::Jwk, DecodingKey};
-use leptos::{
-    create_effect, create_local_resource, expect_context, provide_context, spawn_local, Resource,
-    SignalGet, SignalGetUntracked, SignalUpdate,
-};
-use leptos_router::{use_navigate, use_query, NavigateOptions};
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use leptos_router::hooks::{use_navigate, use_query};
+use leptos_router::NavigateOptions;
+
 use leptos_use::{
     storage::{use_local_storage, use_session_storage},
     use_timeout_fn, UseTimeoutFnReturn,
@@ -56,11 +56,8 @@ pub use error::AuthError;
 pub type Algorithm = jsonwebtoken::Algorithm;
 pub type TokenData<T> = jsonwebtoken::TokenData<T>;
 pub type Validation = jsonwebtoken::Validation;
-pub type IssuerResource = Resource<AuthParameters, (Configuration, Keys)>;
-pub type AuthResource = Resource<
-    (Option<(Configuration, Keys)>, Option<TokenStorage>),
-    Result<Option<TokenStorage>, AuthError>,
->;
+pub type IssuerResource = (Configuration, Keys);
+pub type AuthResource = Result<Option<TokenStorage>, AuthError>;
 
 const REFRESH_TOKEN_SECONDS_BEFORE: usize = 30;
 
@@ -102,37 +99,27 @@ pub struct Keys {
 
 /// Authentication handler responsible for handling user authentication and
 /// token management.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Auth {
     parameters: AuthParameters,
     issuer: IssuerResource,
-    resource: AuthResource,
+    resource: RwSignal<AuthResource>,
 }
-
-impl PartialEq for Auth {
-    fn eq(&self, other: &Self) -> bool {
-        self.parameters == other.parameters
-            && self.issuer.get() == other.issuer.get()
-            && self.resource.get().and_then(Result::ok) == other.resource.get().and_then(Result::ok)
-    }
-}
-
-impl Eq for Auth {}
 
 impl Auth {
     /// Initializes a new `Auth` instance with the provided authentication
     /// parameters. This function creates and returns an `Auth` struct
     /// configured for authentication.
     #[allow(clippy::must_use_candidate)]
-    pub fn init(parameters: AuthParameters) -> Self {
-        let issuer = init_issuer_resource(parameters.clone());
-        let resource = init_auth_resource(parameters.clone(), issuer);
+    pub async fn init(parameters: AuthParameters) -> Self {
+        let (configuration, keys) = init_issuer_resource(&parameters).await;
+        let resource = RwSignal::new(init_auth_resource(&parameters, &configuration).await);
 
-        create_handle_refresh_effect(parameters.clone(), issuer, resource);
+        create_handle_refresh_effect(parameters.clone(), configuration.clone(), resource);
 
         let auth = Self {
             parameters,
-            issuer,
+            issuer: (configuration, keys),
             resource,
         };
 
@@ -146,9 +133,8 @@ impl Auth {
     /// login page.
     #[must_use]
     pub fn login_url(&self) -> Option<String> {
-        let issuer = self.issuer.get()?;
 
-        let mut params = issuer
+        let mut params = self.issuer
             .0
             .authorization_endpoint
             .clone()
@@ -205,9 +191,7 @@ impl Auth {
     /// page.
     #[must_use]
     pub fn logout_url(&self) -> Option<String> {
-        let issuer = self.issuer.get()?;
-
-        let url = issuer.0.end_session_endpoint.clone().push_param_query(
+        let url = self.issuer.0.end_session_endpoint.clone().push_param_query(
             "post_logout_redirect_uri",
             self.parameters
                 .post_logout_redirect_uri
@@ -215,33 +199,30 @@ impl Auth {
                 .push_param_query("destroy_session", "true"),
         );
 
-        if let Some(token) = self.resource.get().and_then(Result::ok).flatten() {
-            return Some(url.push_param_query("id_token_hint", token.id_token));
+        if let Ok(Some(token)) = &self.resource.get() {
+            return Some(url.push_param_query("id_token_hint", &token.id_token));
         }
 
         Some(url)
     }
 
     /// Checks if the authentication process is currently loading.
-    #[must_use]
+    #[deprecated]
     pub fn loading(&self) -> bool {
-        self.resource.loading().get()
+        unimplemented!()
     }
 
     /// Checks if the user is authenticated.
-    #[must_use]
+    #[deprecated]
     pub fn authenticated(&self) -> bool {
-        self.resource.get().and_then(Result::ok).flatten().is_some()
+        unimplemented!()
     }
 
     /// Returns the ID token, if available, from the authentication response.
     #[must_use]
     pub fn id_token(&self) -> Option<String> {
-        self.resource
-            .get()
-            .and_then(Result::ok)
-            .flatten()
-            .map(|response| response.id_token)
+        self.resource.get().as_ref().ok().flatten()
+            .map(|response| response.id_token.clone())
     }
 
     /// Returns the decoded access token, if available, from the authentication response.
@@ -251,18 +232,17 @@ impl Auth {
         algorithm: Algorithm,
         audience: &[&str],
     ) -> Option<Option<TokenData<T>>> {
-        let issuer = self.issuer.get()?;
-
         let mut validation = Validation::new(algorithm);
         validation.set_audience(audience);
 
         self.resource
             .get()
-            .and_then(Result::ok)
+            .as_ref()
+            .ok()
             .flatten()
             .map(|response| {
-                for key in issuer.1.keys {
-                    let Ok(decoding_key) = DecodingKey::from_jwk(&key) else {
+                for key in &self.issuer.1.keys {
+                    let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
                         continue;
                     };
 
@@ -281,9 +261,10 @@ impl Auth {
     pub fn access_token(&self) -> Option<String> {
         self.resource
             .get()
-            .and_then(Result::ok)
+            .as_ref()
+            .ok()
             .flatten()
-            .map(|response| response.access_token)
+            .map(|response| response.access_token.clone())
     }
 
     /// Returns the decoded access token, if available, from the authentication response.
@@ -293,18 +274,18 @@ impl Auth {
         algorithm: Algorithm,
         audience: &[&str],
     ) -> Option<Option<TokenData<T>>> {
-        let issuer = self.issuer.get()?;
 
         let mut validation = Validation::new(algorithm);
         validation.set_audience(audience);
 
         self.resource
             .get()
-            .and_then(Result::ok)
+            .as_ref()
+            .ok()
             .flatten()
             .map(|response| {
-                for key in issuer.1.keys {
-                    let Ok(decoding_key) = DecodingKey::from_jwk(&key) else {
+                for key in &self.issuer.1.keys {
+                    let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
                         continue;
                     };
 
@@ -316,16 +297,6 @@ impl Auth {
 
                 None
             })
-    }
-
-    /// Returns the authentication state, which may contain token storage information.
-    pub fn ok(&self) -> Option<Option<TokenStorage>> {
-        self.resource.get().and_then(Result::ok)
-    }
-
-    /// Returns any authentication error that occurred during the process.
-    pub fn err(&self) -> Option<AuthError> {
-        self.resource.get().and_then(Result::err)
     }
 
     /// This can be used to set the `redirect_uri` dynamically. It's helpful if
@@ -340,132 +311,108 @@ impl Auth {
 /// # Panics
 ///
 /// The init function can panic when the issuer and jwks could ne be fetched successfully.
-fn init_issuer_resource(parameters: AuthParameters) -> IssuerResource {
-    create_local_resource(move || parameters.clone(), {
-        move |parameters: AuthParameters| async move {
-            let configuration = reqwest::Client::new()
-                .get(format!(
-                    "{}/.well-known/openid-configuration",
-                    parameters.issuer
-                ))
-                .send()
-                .await
-                .unwrap()
-                .json::<Configuration>()
-                .await
-                .unwrap();
+async fn init_issuer_resource(parameters: &AuthParameters) -> IssuerResource {
+    let configuration = reqwest::Client::new()
+        .get(format!(
+            "{}/.well-known/openid-configuration",
+            parameters.issuer
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json::<Configuration>()
+        .await
+        .unwrap();
 
-            let keys = reqwest::Client::new()
-                .get(configuration.jwks_uri.clone())
-                .send()
-                .await
-                .unwrap()
-                .json::<Keys>()
-                .await
-                .unwrap();
+    let keys = reqwest::Client::new()
+        .get(configuration.jwks_uri.clone())
+        .send()
+        .await
+        .unwrap()
+        .json::<Keys>()
+        .await
+        .unwrap();
 
-            (configuration, keys)
-        }
-    })
+    (configuration, keys)
+
 }
 
 /// Initialize the auth resource, which will handle the entire state of the authentication.
-fn init_auth_resource(parameters: AuthParameters, issuer: IssuerResource) -> AuthResource {
-    create_local_resource(
-        move || {
-            (
-                issuer.get(),
-                use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY)
-                    .0
-                    .get(),
-            )
-        },
-        {
-            move |(issuer, local_storage): (Option<(Configuration, Keys)>, Option<TokenStorage>)| {
-                let parameters = parameters.clone();
-                async move {
-                    let Some(issuer) = issuer else {
-                        return Ok(None);
-                    };
+async fn init_auth_resource(parameters: &AuthParameters, configuration: &Configuration) -> AuthResource {
+    let local_storage = use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY)
+        .0.get();
 
-                    let (_, set_local_storage, remove_local_storage) =
-                        use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(
-                            LOCAL_STORAGE_KEY,
-                        );
+    let (_, set_local_storage, remove_local_storage) =
+        use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(
+            LOCAL_STORAGE_KEY,
+        );
 
-                    let auth_response = use_query::<CallbackResponse>();
-                    match auth_response.get_untracked() {
-                        Ok(CallbackResponse::SuccessLogin(response)) => {
-                            use_navigate()(
-                                &parameters.redirect_uri,
-                                NavigateOptions {
-                                    resolve: false,
-                                    replace: true,
-                                    scroll: true,
-                                    state: leptos_router::State(None),
-                                },
-                            );
+    let auth_response = use_query::<CallbackResponse>();
+    match auth_response.get_untracked() {
+        Ok(CallbackResponse::SuccessLogin(response)) => {
+            use_navigate()(
+                &parameters.redirect_uri,
+                NavigateOptions {
+                    resolve: false,
+                    replace: true,
+                    scroll: true,
+                    state: leptos_router::location::State::new(None),
+                },
+            );
 
-                            if let Some(token_storage) = local_storage {
-                                if token_storage.expires_in >= Local::now().naive_utc() {
-                                    return Ok(Some(token_storage));
-                                }
-                            }
-
-                            let token_storage =
-                                fetch_token(&parameters, &issuer.0, response).await?;
-
-                            set_local_storage.update(|u| *u = Some(token_storage.clone()));
-
-                            Ok(Some(token_storage))
-                        }
-                        Ok(CallbackResponse::SuccessLogout(response)) => {
-                            use_navigate()(
-                                &parameters.post_logout_redirect_uri,
-                                NavigateOptions {
-                                    resolve: false,
-                                    replace: true,
-                                    scroll: true,
-                                    state: leptos_router::State(None),
-                                },
-                            );
-
-                            if response.destroy_session {
-                                remove_local_storage();
-                            }
-
-                            Ok(None)
-                        }
-                        Ok(CallbackResponse::Error(error)) => Err(AuthError::Provider(error)),
-                        Err(_) => {
-                            if let Some(token_storage) = local_storage {
-                                if token_storage.expires_in >= Local::now().naive_utc() {
-                                    return Ok(Some(token_storage));
-                                }
-
-                                remove_local_storage();
-                            }
-
-                            Ok(None)
-                        }
-                    }
+            if let Some(token_storage) = local_storage {
+                if token_storage.expires_in >= Local::now().naive_utc() {
+                    return Ok(Some(token_storage));
                 }
             }
-        },
-    )
+
+            let token_storage =
+                fetch_token(parameters, configuration, response).await?;
+
+            set_local_storage.update(|u| *u = Some(token_storage.clone()));
+
+            Ok(Some(token_storage))
+        }
+        Ok(CallbackResponse::SuccessLogout(response)) => {
+            use_navigate()(
+                &parameters.post_logout_redirect_uri,
+                NavigateOptions {
+                    resolve: false,
+                    replace: true,
+                    scroll: true,
+                    state: leptos_router::location::State::new(None),
+                },
+            );
+
+            if response.destroy_session {
+                remove_local_storage();
+            }
+
+            Ok(None)
+        }
+        Ok(CallbackResponse::Error(error)) => Err(AuthError::Provider(error)),
+        Err(_) => {
+            if let Some(token_storage) = local_storage {
+                if token_storage.expires_in >= Local::now().naive_utc() {
+                    return Ok(Some(token_storage));
+                }
+
+                remove_local_storage();
+            }
+
+            Ok(None)
+        }
+    }
 }
 
 /// This will handle the refresh, if there is an refresh token.
 fn create_handle_refresh_effect(
     parameters: AuthParameters,
-    issuer: IssuerResource,
-    resource: AuthResource,
+    configuration: Configuration,
+    resource: RwSignal<AuthResource>,
 ) {
-    create_effect(move |_| {
-        let Some(issuer) = issuer.get() else {
-            return;
-        };
-        let Some(Ok(Some(token_storage))) = resource.get() else {
+    Effect::new(move || {
+        let Ok(Some(token_storage)) = resource.get() else {
             return;
         };
 
@@ -478,7 +425,7 @@ fn create_handle_refresh_effect(
             move |(parameters, configuration, resource, token): (
                 AuthParameters,
                 Configuration,
-                AuthResource,
+                RwSignal<AuthResource>,
                 String,
             )| {
                 spawn_local(async move {
@@ -494,7 +441,8 @@ fn create_handle_refresh_effect(
                             .update(|u| *u = token_storage);
                         }
                         Err(error) => {
-                            resource.update(|u| *u = Some(Err(error)));
+                            // TODO: store 
+                            //resource.update(|u| *u = Some(Err(error)));
                         }
                     }
                 });
@@ -504,7 +452,7 @@ fn create_handle_refresh_effect(
 
         start((
             parameters.clone(),
-            issuer.0,
+            configuration.clone(),
             resource,
             token_storage.refresh_token.clone(),
         ));
