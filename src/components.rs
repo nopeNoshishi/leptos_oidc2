@@ -92,7 +92,7 @@ pub fn AuthLoaded(children: ChildrenFn, #[prop(optional, into)] fallback: ViewFn
 #[component(transparent)]
 pub fn LoginLink(
     children: Children,
-    #[prop(optional, into)] class: Option<impl IntoClass>,
+    #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
     let auth = expect_context::<Auth>();
     let login_url = move || auth.login_url();
@@ -110,7 +110,7 @@ pub fn LoginLink(
 #[component(transparent)]
 pub fn LogoutLink(
     children: Children,
-    #[prop(optional, into)] class: Option<impl IntoClass>,
+    #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
     let auth = expect_context::<Auth>();
     let logout_url = move || auth.logout_url();

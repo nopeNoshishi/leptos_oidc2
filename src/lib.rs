@@ -56,8 +56,12 @@ pub use error::AuthError;
 pub type Algorithm = jsonwebtoken::Algorithm;
 pub type TokenData<T> = jsonwebtoken::TokenData<T>;
 pub type Validation = jsonwebtoken::Validation;
-pub type IssuerResource = (Configuration, Keys);
-pub type AuthResource = Result<Option<TokenStorage>, AuthError>;
+#[derive(Clone)]
+pub struct IssuerMetadata {
+    configuration: Configuration,
+    keys: Keys,
+}
+pub type TokenStorageResult = Result<Option<TokenStorage>, AuthError>;
 
 const REFRESH_TOKEN_SECONDS_BEFORE: usize = 30;
 
@@ -102,30 +106,30 @@ pub struct Keys {
 #[derive(Clone)]
 pub struct Auth {
     parameters: AuthParameters,
-    issuer: IssuerResource,
-    resource: RwSignal<AuthResource>,
+    issuer: IssuerMetadata,
+    resource: RwSignal<TokenStorageResult>,
 }
 
 impl Auth {
     /// Initializes a new `Auth` instance with the provided authentication
     /// parameters. This function creates and returns an `Auth` struct
     /// configured for authentication.
-    #[allow(clippy::must_use_candidate)]
-    pub async fn init(parameters: AuthParameters) -> Self {
-        let (configuration, keys) = init_issuer_resource(&parameters).await;
-        let resource = RwSignal::new(init_auth_resource(&parameters, &configuration).await);
+    pub fn init(parameters: AuthParameters) -> LocalResource<Self> {
+        LocalResource::new(move || {
+            let parameters = parameters.clone();
+            async move {
+                let issuer_metadata = init_issuer_resource(&parameters).await;
+                let resource = RwSignal::new(init_auth_resource(&parameters, &issuer_metadata.configuration).await);
+                tracing::info!("Init after token storage rwsignal");
 
-        create_handle_refresh_effect(parameters.clone(), configuration.clone(), resource);
-
-        let auth = Self {
-            parameters,
-            issuer: (configuration, keys),
-            resource,
-        };
-
-        provide_context(auth);
-
-        expect_context::<Auth>()
+                // create_handle_refresh_effect(parameters.clone(), issuer_metadata.configuration.clone(), resource);
+                Self {
+                    parameters,
+                    issuer: issuer_metadata,
+                    resource,
+                }
+            }
+        })
     }
 
     /// Generates and returns the URL for initiating the authentication process.
@@ -135,7 +139,7 @@ impl Auth {
     pub fn login_url(&self) -> Option<String> {
 
         let mut params = self.issuer
-            .0
+            .configuration
             .authorization_endpoint
             .clone()
             .push_param_query("response_type", "code")
@@ -191,7 +195,7 @@ impl Auth {
     /// page.
     #[must_use]
     pub fn logout_url(&self) -> Option<String> {
-        let url = self.issuer.0.end_session_endpoint.clone().push_param_query(
+        let url = self.issuer.configuration.end_session_endpoint.clone().push_param_query(
             "post_logout_redirect_uri",
             self.parameters
                 .post_logout_redirect_uri
@@ -213,9 +217,11 @@ impl Auth {
     }
 
     /// Checks if the user is authenticated.
-    #[deprecated]
+    #[must_use]
     pub fn authenticated(&self) -> bool {
-        unimplemented!()
+        self.resource.get().ok()
+            .and_then(|storage| storage.map(|token| token.is_valid()))
+            .unwrap_or(false)
     }
 
     /// Returns the ID token, if available, from the authentication response.
@@ -241,7 +247,7 @@ impl Auth {
             .ok()
             .flatten()
             .map(|response| {
-                for key in &self.issuer.1.keys {
+                for key in &self.issuer.keys.keys {
                     let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
                         continue;
                     };
@@ -284,7 +290,7 @@ impl Auth {
             .ok()
             .flatten()
             .map(|response| {
-                for key in &self.issuer.1.keys {
+                for key in &self.issuer.keys.keys {
                     let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
                         continue;
                     };
@@ -311,7 +317,7 @@ impl Auth {
 /// # Panics
 ///
 /// The init function can panic when the issuer and jwks could ne be fetched successfully.
-async fn init_issuer_resource(parameters: &AuthParameters) -> IssuerResource {
+async fn init_issuer_resource(parameters: &AuthParameters) -> IssuerMetadata {
     let configuration = reqwest::Client::new()
         .get(format!(
             "{}/.well-known/openid-configuration",
@@ -333,12 +339,12 @@ async fn init_issuer_resource(parameters: &AuthParameters) -> IssuerResource {
         .await
         .unwrap();
 
-    (configuration, keys)
+    IssuerMetadata { configuration, keys }
 
 }
 
 /// Initialize the auth resource, which will handle the entire state of the authentication.
-async fn init_auth_resource(parameters: &AuthParameters, configuration: &Configuration) -> AuthResource {
+async fn init_auth_resource(parameters: &AuthParameters, configuration: &Configuration) -> TokenStorageResult {
     let local_storage = use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY)
         .0.get();
 
@@ -361,7 +367,7 @@ async fn init_auth_resource(parameters: &AuthParameters, configuration: &Configu
             );
 
             if let Some(token_storage) = local_storage {
-                if token_storage.expires_in >= Local::now().naive_utc() {
+                if token_storage.is_valid() {
                     return Ok(Some(token_storage));
                 }
             }
@@ -409,7 +415,7 @@ async fn init_auth_resource(parameters: &AuthParameters, configuration: &Configu
 fn create_handle_refresh_effect(
     parameters: AuthParameters,
     configuration: Configuration,
-    resource: RwSignal<AuthResource>,
+    resource: RwSignal<TokenStorageResult>,
 ) {
     Effect::new(move || {
         let Ok(Some(token_storage)) = resource.get() else {
@@ -425,7 +431,7 @@ fn create_handle_refresh_effect(
             move |(parameters, configuration, resource, token): (
                 AuthParameters,
                 Configuration,
-                RwSignal<AuthResource>,
+                RwSignal<TokenStorageResult>,
                 String,
             )| {
                 spawn_local(async move {

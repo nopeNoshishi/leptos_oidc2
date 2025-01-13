@@ -82,7 +82,7 @@ information.
 Please keep in mind that the `issuer` url needs to be the base url without the `/.well-known/openid-configuration`.
 
 ```rust
-use leptos::*;
+use leptos::prelude::*;
 use leptos_oidc::{Auth, AuthParameters};
 
 #[component]
@@ -160,7 +160,7 @@ pub fn Home() -> impl IntoView {
         <Title text="Home"/>
         <h1>Home</h1>
 
-        // Your Pome Page without authentication
+        // Your Some Page without authentication
     }
 }
 
@@ -209,7 +209,7 @@ application. These URLs are used to redirect users to the OIDC provider for
 authentication and logout.
 
 ```rust
-use leptos::*;
+use leptos::prelude::*;
 use leptos_oidc::Auth;
 
 #[component]
@@ -231,7 +231,7 @@ based on the authentication state. These components simplify the user interface
 when dealing with authenticated and unauthenticated users.
 
 ```rust
-use leptos::*;
+use leptos::prelude::*;
 use leptos_oidc::Auth;
 
 #[component]
