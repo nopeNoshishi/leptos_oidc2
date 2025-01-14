@@ -64,6 +64,7 @@ pub fn AppWithRouter() -> impl IntoView {
                                             unauthenticated=move || view! { <Unauthenticated/> }
                                         >
                                             <Profile/>
+                                            <LogoutLink class="text-logout">Sign out</LogoutLink>
                                         </Authenticated>
                                     }
                                 }
@@ -118,7 +119,7 @@ pub fn Profile() -> impl IntoView {
     view! {
         <Title text="Profile"/>
         <h1>Profile</h1>
-        <LogoutLink class="text-logout">Sign out</LogoutLink>
+
         // Your Profile Page
     }
 }

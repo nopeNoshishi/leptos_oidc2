@@ -120,9 +120,8 @@ impl Auth {
             async move {
                 let issuer_metadata = init_issuer_resource(&parameters).await;
                 let resource = RwSignal::new(init_auth_resource(&parameters, &issuer_metadata.configuration).await);
-                tracing::info!("Init after token storage rwsignal");
 
-                // create_handle_refresh_effect(parameters.clone(), issuer_metadata.configuration.clone(), resource);
+                create_handle_refresh_effect(parameters.clone(), issuer_metadata.configuration.clone(), resource);
                 Self {
                     parameters,
                     issuer: issuer_metadata,
@@ -162,7 +161,7 @@ impl Auth {
 
         match &self.parameters.challenge {
             Challenge::S256 | Challenge::Plain => {
-                let code_challenge = if let Some(code_verifier_secret) = code_verifier.get() {
+                let code_challenge = if let Some(code_verifier_secret) = code_verifier.get_untracked() {
                     let verifier = PkceCodeVerifier::new(code_verifier_secret);
                     if self.parameters.challenge == Challenge::S256 {
                         PkceCodeChallenge::from_code_verifier_sha256(&verifier)
@@ -175,7 +174,7 @@ impl Auth {
                     } else {
                         PkceCodeChallenge::new_random_plain()
                     };
-                    set_code_verifier.update(|u| *u = Some(verifier.secret().to_owned()));
+                    set_code_verifier.set(Some(verifier.secret().to_owned()));
                     code
                 };
                 params = params.push_param_query("code_challenge", code_challenge.as_str());
@@ -231,6 +230,17 @@ impl Auth {
             .map(|response| response.id_token.clone())
     }
 
+    /// Returns the access token, if available, from the authentication response.
+    #[must_use]
+    pub fn access_token(&self) -> Option<String> {
+        self.resource
+            .get()
+            .as_ref()
+            .ok()
+            .flatten()
+            .map(|response| response.access_token.clone())
+    }
+
     /// Returns the decoded access token, if available, from the authentication response.
     #[must_use]
     pub fn decoded_id_token<T: DeserializeOwned>(
@@ -262,17 +272,6 @@ impl Auth {
             })
     }
 
-    /// Returns the access token, if available, from the authentication response.
-    #[must_use]
-    pub fn access_token(&self) -> Option<String> {
-        self.resource
-            .get()
-            .as_ref()
-            .ok()
-            .flatten()
-            .map(|response| response.access_token.clone())
-    }
-
     /// Returns the decoded access token, if available, from the authentication response.
     #[must_use]
     pub fn decoded_access_token<T: DeserializeOwned>(
@@ -295,7 +294,7 @@ impl Auth {
                         continue;
                     };
 
-                    match decode::<T>(&response.id_token, &decoding_key, &validation) {
+                    match decode::<T>(&response.access_token, &decoding_key, &validation) {
                         Ok(data) => return Some(data),
                         Err(_) => continue,
                     }
@@ -345,10 +344,7 @@ async fn init_issuer_resource(parameters: &AuthParameters) -> IssuerMetadata {
 
 /// Initialize the auth resource, which will handle the entire state of the authentication.
 async fn init_auth_resource(parameters: &AuthParameters, configuration: &Configuration) -> TokenStorageResult {
-    let local_storage = use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY)
-        .0.get();
-
-    let (_, set_local_storage, remove_local_storage) =
+    let (local_storage, set_local_storage, remove_local_storage) =
         use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(
             LOCAL_STORAGE_KEY,
         );
@@ -366,7 +362,7 @@ async fn init_auth_resource(parameters: &AuthParameters, configuration: &Configu
                 },
             );
 
-            if let Some(token_storage) = local_storage {
+            if let Some(token_storage) = local_storage.get() {
                 if token_storage.is_valid() {
                     return Ok(Some(token_storage));
                 }
@@ -375,7 +371,7 @@ async fn init_auth_resource(parameters: &AuthParameters, configuration: &Configu
             let token_storage =
                 fetch_token(parameters, configuration, response).await?;
 
-            set_local_storage.update(|u| *u = Some(token_storage.clone()));
+            set_local_storage.update(|storage| *storage = Some(token_storage.clone()));
 
             Ok(Some(token_storage))
         }
@@ -397,16 +393,17 @@ async fn init_auth_resource(parameters: &AuthParameters, configuration: &Configu
             Ok(None)
         }
         Ok(CallbackResponse::Error(error)) => Err(AuthError::Provider(error)),
-        Err(_) => {
-            if let Some(token_storage) = local_storage {
-                if token_storage.expires_in >= Local::now().naive_utc() {
-                    return Ok(Some(token_storage));
+        Err(_no_query_parameters) => {
+            if let Some(token_storage) = local_storage.get() {
+                if token_storage.is_valid() {
+                    Ok(Some(token_storage))
+                } else {
+                    remove_local_storage();
+                    Ok(None)
                 }
-
-                remove_local_storage();
+            } else {
+                Ok(None)
             }
-
-            Ok(None)
         }
     }
 }
@@ -437,18 +434,14 @@ fn create_handle_refresh_effect(
                 spawn_local(async move {
                     match refresh_token(&parameters, &configuration, token)
                         .await
-                        .map(Option::Some)
+                        .map(Some)
                     {
                         Ok(token_storage) => {
-                            use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(
-                                LOCAL_STORAGE_KEY,
-                            )
-                            .1
-                            .update(|u| *u = token_storage);
+                            let (_, set_storage, _) = use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY);
+                            set_storage.set(token_storage);
                         }
                         Err(error) => {
-                            // TODO: store 
-                            //resource.update(|u| *u = Some(Err(error)));
+                            resource.set(Err(error));
                         }
                     }
                 });

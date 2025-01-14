@@ -53,6 +53,7 @@ impl From<SuccessTokenResponse> for TokenStorage {
         Self {
             id_token: value.id_token,
             access_token: value.access_token,
+            // TODO: expiration date = issued at datetime (iat field in access token) + expires_in (field in access token, validity in seconds)
             expires_in: Utc::now().naive_utc()
                 + TimeDelta::try_seconds(value.expires_in).unwrap_or_default(),
             refresh_token: value.refresh_token,
