@@ -21,10 +21,8 @@
 * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 * SOFTWARE.
 */
-use crate::Auth;
-use leptos::attr::AttributeValue;
+use crate::{Auth, AuthParameters};
 use leptos::prelude::*;
-use leptos::tachys::html::class::IntoClass;
 
 /// A transparent component representing authenticated user status.
 /// It provides a way to conditionally render its children based on the user's authentication status.
@@ -33,7 +31,6 @@ use leptos::tachys::html::class::IntoClass;
 #[component(transparent)]
 pub fn Authenticated(
     children: ChildrenFn,
-    #[prop(optional, into)] loading: ViewFnOnce,
     #[prop(optional, into)] unauthenticated: ViewFn,
 ) -> impl IntoView {
     let auth = expect_context::<Auth>();
@@ -42,49 +39,43 @@ pub fn Authenticated(
     let children = StoredValue::new(children);
 
     view! {
-        <Transition fallback=loading>
-            <Show
-                when=authenticated.clone()
-                fallback=unauthenticated.clone()
-            >
-                { children.read_value()() }
-            </Show>
-        </Transition>
+        <Show
+            when=authenticated.clone()
+            fallback=unauthenticated.clone()
+        >
+            { children.read_value()() }
+        </Show>
     }
 }
 
-/// A transparent component representing the loading state of authentication.
-/// It allows rendering its children when the authentication process is loading, with an optional fallback view.
 #[must_use]
 #[component(transparent)]
-pub fn AuthLoading(
+pub fn AuthInitialized(
     children: ChildrenFn,
-    #[prop(optional, into)] fallback: ViewFn,
+    parameters: AuthParameters,
+    #[prop(optional, into)] fallback: ViewFnOnce,
 ) -> impl IntoView {
-    let auth = expect_context::<Auth>();
-    let loading = move || auth.loading();
+    let auth = Auth::init(parameters);
+    let children = StoredValue::new(children);
 
     view! {
-        <Show when=loading fallback=fallback>
-            {children()}
-        </Show>
+        <Suspense fallback>
+            { 
+                move || {
+                Suspend::new(async move {
+                    // provides authentication data in leptos context
+                    provide_context(auth.await);
+
+                    view! {
+                        { children.read_value()() }
+                    }
+                })
+            }}
+
+        </Suspense>
     }
 }
 
-/// A transparent component representing the loaded state of authentication.
-/// It allows rendering its children when the authentication process has completed, with an optional fallback view.
-#[must_use]
-#[component(transparent)]
-pub fn AuthLoaded(children: ChildrenFn, #[prop(optional, into)] fallback: ViewFn) -> impl IntoView {
-    let auth = expect_context::<Auth>();
-    let loaded = move || !auth.loading();
-
-    view! {
-        <Show when=loaded fallback=fallback>
-            {children()}
-        </Show>
-    }
-}
 
 /// A transparent component representing a login link.
 /// It generates a login URL and renders a link with the provided children and optional CSS class.

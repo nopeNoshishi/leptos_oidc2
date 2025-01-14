@@ -107,7 +107,7 @@ pub struct Keys {
 pub struct Auth {
     parameters: AuthParameters,
     issuer: IssuerMetadata,
-    resource: RwSignal<TokenStorageResult>,
+    token_store: RwSignal<TokenStorageResult>,
 }
 
 impl Auth {
@@ -118,20 +118,20 @@ impl Auth {
         LocalResource::new(move || {
             let parameters = parameters.clone();
             async move {
-                let issuer_metadata = init_issuer_resource(&parameters).await;
-                let resource = RwSignal::new(
-                    init_auth_resource(&parameters, &issuer_metadata.configuration).await,
+                let issuer = init_issuer_resource(&parameters).await;
+                let token_store = RwSignal::new(
+                    init_auth_resource(&parameters, &issuer.configuration).await,
                 );
 
                 create_handle_refresh_effect(
                     parameters.clone(),
-                    issuer_metadata.configuration.clone(),
-                    resource,
+                    issuer.configuration.clone(),
+                    token_store,
                 );
                 Self {
                     parameters,
-                    issuer: issuer_metadata,
-                    resource,
+                    issuer,
+                    token_store,
                 }
             }
         })
@@ -214,7 +214,7 @@ impl Auth {
                     .push_param_query("destroy_session", "true"),
             );
 
-        if let Ok(Some(token)) = &self.resource.get() {
+        if let Ok(Some(token)) = &self.token_store.get() {
             return Some(url.push_param_query("id_token_hint", &token.id_token));
         }
 
@@ -230,7 +230,7 @@ impl Auth {
     /// Checks if the user is authenticated.
     #[must_use]
     pub fn authenticated(&self) -> bool {
-        self.resource
+        self.token_store
             .get()
             .ok()
             .and_then(|storage| storage.map(|token| token.is_valid()))
@@ -240,7 +240,7 @@ impl Auth {
     /// Returns the ID token, if available, from the authentication response.
     #[must_use]
     pub fn id_token(&self) -> Option<String> {
-        self.resource
+        self.token_store
             .get()
             .as_ref()
             .ok()
@@ -251,7 +251,7 @@ impl Auth {
     /// Returns the access token, if available, from the authentication response.
     #[must_use]
     pub fn access_token(&self) -> Option<String> {
-        self.resource
+        self.token_store
             .get()
             .as_ref()
             .ok()
@@ -269,7 +269,7 @@ impl Auth {
         let mut validation = Validation::new(algorithm);
         validation.set_audience(audience);
 
-        self.resource.get().as_ref().ok().flatten().map(|response| {
+        self.token_store.get().as_ref().ok().flatten().map(|response| {
             for key in &self.issuer.keys.keys {
                 let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
                     continue;
@@ -295,7 +295,7 @@ impl Auth {
         let mut validation = Validation::new(algorithm);
         validation.set_audience(audience);
 
-        self.resource.get().as_ref().ok().flatten().map(|response| {
+        self.token_store.get().as_ref().ok().flatten().map(|response| {
             for key in &self.issuer.keys.keys {
                 let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
                     continue;
@@ -372,7 +372,7 @@ async fn init_auth_resource(
                 },
             );
 
-            if let Some(token_storage) = local_storage.get() {
+            if let Some(token_storage) = local_storage.get_untracked() {
                 if token_storage.is_valid() {
                     return Ok(Some(token_storage));
                 }
@@ -403,7 +403,7 @@ async fn init_auth_resource(
         }
         Ok(CallbackResponse::Error(error)) => Err(AuthError::Provider(error)),
         Err(_no_query_parameters) => {
-            if let Some(token_storage) = local_storage.get() {
+            if let Some(token_storage) = local_storage.get_untracked() {
                 if token_storage.is_valid() {
                     Ok(Some(token_storage))
                 } else {
@@ -421,10 +421,10 @@ async fn init_auth_resource(
 fn create_handle_refresh_effect(
     parameters: AuthParameters,
     configuration: Configuration,
-    resource: RwSignal<TokenStorageResult>,
+    token_storage_signal: RwSignal<TokenStorageResult>,
 ) {
     Effect::new(move || {
-        let Ok(Some(token_storage)) = resource.get() else {
+        let Ok(Some(token_storage)) = token_storage_signal.get_untracked() else {
             return;
         };
 
@@ -464,7 +464,7 @@ fn create_handle_refresh_effect(
         start((
             parameters.clone(),
             configuration.clone(),
-            resource,
+            token_storage_signal,
             token_storage.refresh_token.clone(),
         ));
     });
