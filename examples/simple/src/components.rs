@@ -1,8 +1,8 @@
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, Link, Stylesheet, Title};
+use leptos_oidc::{Auth, AuthParameters, Authenticated, Challenge, LoginLink, LogoutLink};
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
-use leptos_oidc::{Auth, AuthParameters, Authenticated, Challenge, LoginLink, LogoutLink};
 
 #[component]
 pub fn App() -> impl IntoView {

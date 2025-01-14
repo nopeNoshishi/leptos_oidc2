@@ -119,9 +119,15 @@ impl Auth {
             let parameters = parameters.clone();
             async move {
                 let issuer_metadata = init_issuer_resource(&parameters).await;
-                let resource = RwSignal::new(init_auth_resource(&parameters, &issuer_metadata.configuration).await);
+                let resource = RwSignal::new(
+                    init_auth_resource(&parameters, &issuer_metadata.configuration).await,
+                );
 
-                create_handle_refresh_effect(parameters.clone(), issuer_metadata.configuration.clone(), resource);
+                create_handle_refresh_effect(
+                    parameters.clone(),
+                    issuer_metadata.configuration.clone(),
+                    resource,
+                );
                 Self {
                     parameters,
                     issuer: issuer_metadata,
@@ -136,8 +142,8 @@ impl Auth {
     /// login page.
     #[must_use]
     pub fn login_url(&self) -> Option<String> {
-
-        let mut params = self.issuer
+        let mut params = self
+            .issuer
             .configuration
             .authorization_endpoint
             .clone()
@@ -161,22 +167,23 @@ impl Auth {
 
         match &self.parameters.challenge {
             Challenge::S256 | Challenge::Plain => {
-                let code_challenge = if let Some(code_verifier_secret) = code_verifier.get_untracked() {
-                    let verifier = PkceCodeVerifier::new(code_verifier_secret);
-                    if self.parameters.challenge == Challenge::S256 {
-                        PkceCodeChallenge::from_code_verifier_sha256(&verifier)
+                let code_challenge =
+                    if let Some(code_verifier_secret) = code_verifier.get_untracked() {
+                        let verifier = PkceCodeVerifier::new(code_verifier_secret);
+                        if self.parameters.challenge == Challenge::S256 {
+                            PkceCodeChallenge::from_code_verifier_sha256(&verifier)
+                        } else {
+                            PkceCodeChallenge::from_code_verifier_plain(&verifier)
+                        }
                     } else {
-                        PkceCodeChallenge::from_code_verifier_plain(&verifier)
-                    }
-                } else {
-                    let (code, verifier) = if self.parameters.challenge == Challenge::S256 {
-                        PkceCodeChallenge::new_random_sha256()
-                    } else {
-                        PkceCodeChallenge::new_random_plain()
+                        let (code, verifier) = if self.parameters.challenge == Challenge::S256 {
+                            PkceCodeChallenge::new_random_sha256()
+                        } else {
+                            PkceCodeChallenge::new_random_plain()
+                        };
+                        set_code_verifier.set(Some(verifier.secret().to_owned()));
+                        code
                     };
-                    set_code_verifier.set(Some(verifier.secret().to_owned()));
-                    code
-                };
                 params = params.push_param_query("code_challenge", code_challenge.as_str());
                 params = params
                     .push_param_query("code_challenge_method", code_challenge.method().as_str());
@@ -194,13 +201,18 @@ impl Auth {
     /// page.
     #[must_use]
     pub fn logout_url(&self) -> Option<String> {
-        let url = self.issuer.configuration.end_session_endpoint.clone().push_param_query(
-            "post_logout_redirect_uri",
-            self.parameters
-                .post_logout_redirect_uri
-                .clone()
-                .push_param_query("destroy_session", "true"),
-        );
+        let url = self
+            .issuer
+            .configuration
+            .end_session_endpoint
+            .clone()
+            .push_param_query(
+                "post_logout_redirect_uri",
+                self.parameters
+                    .post_logout_redirect_uri
+                    .clone()
+                    .push_param_query("destroy_session", "true"),
+            );
 
         if let Ok(Some(token)) = &self.resource.get() {
             return Some(url.push_param_query("id_token_hint", &token.id_token));
@@ -218,7 +230,9 @@ impl Auth {
     /// Checks if the user is authenticated.
     #[must_use]
     pub fn authenticated(&self) -> bool {
-        self.resource.get().ok()
+        self.resource
+            .get()
+            .ok()
             .and_then(|storage| storage.map(|token| token.is_valid()))
             .unwrap_or(false)
     }
@@ -226,7 +240,11 @@ impl Auth {
     /// Returns the ID token, if available, from the authentication response.
     #[must_use]
     pub fn id_token(&self) -> Option<String> {
-        self.resource.get().as_ref().ok().flatten()
+        self.resource
+            .get()
+            .as_ref()
+            .ok()
+            .flatten()
             .map(|response| response.id_token.clone())
     }
 
@@ -251,25 +269,20 @@ impl Auth {
         let mut validation = Validation::new(algorithm);
         validation.set_audience(audience);
 
-        self.resource
-            .get()
-            .as_ref()
-            .ok()
-            .flatten()
-            .map(|response| {
-                for key in &self.issuer.keys.keys {
-                    let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
-                        continue;
-                    };
+        self.resource.get().as_ref().ok().flatten().map(|response| {
+            for key in &self.issuer.keys.keys {
+                let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
+                    continue;
+                };
 
-                    match decode::<T>(&response.id_token, &decoding_key, &validation) {
-                        Ok(data) => return Some(data),
-                        Err(_) => continue,
-                    }
+                match decode::<T>(&response.id_token, &decoding_key, &validation) {
+                    Ok(data) => return Some(data),
+                    Err(_) => continue,
                 }
+            }
 
-                None
-            })
+            None
+        })
     }
 
     /// Returns the decoded access token, if available, from the authentication response.
@@ -279,29 +292,23 @@ impl Auth {
         algorithm: Algorithm,
         audience: &[&str],
     ) -> Option<Option<TokenData<T>>> {
-
         let mut validation = Validation::new(algorithm);
         validation.set_audience(audience);
 
-        self.resource
-            .get()
-            .as_ref()
-            .ok()
-            .flatten()
-            .map(|response| {
-                for key in &self.issuer.keys.keys {
-                    let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
-                        continue;
-                    };
+        self.resource.get().as_ref().ok().flatten().map(|response| {
+            for key in &self.issuer.keys.keys {
+                let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
+                    continue;
+                };
 
-                    match decode::<T>(&response.access_token, &decoding_key, &validation) {
-                        Ok(data) => return Some(data),
-                        Err(_) => continue,
-                    }
+                match decode::<T>(&response.access_token, &decoding_key, &validation) {
+                    Ok(data) => return Some(data),
+                    Err(_) => continue,
                 }
+            }
 
-                None
-            })
+            None
+        })
     }
 
     /// This can be used to set the `redirect_uri` dynamically. It's helpful if
@@ -338,16 +345,19 @@ async fn init_issuer_resource(parameters: &AuthParameters) -> IssuerMetadata {
         .await
         .unwrap();
 
-    IssuerMetadata { configuration, keys }
-
+    IssuerMetadata {
+        configuration,
+        keys,
+    }
 }
 
 /// Initialize the auth resource, which will handle the entire state of the authentication.
-async fn init_auth_resource(parameters: &AuthParameters, configuration: &Configuration) -> TokenStorageResult {
+async fn init_auth_resource(
+    parameters: &AuthParameters,
+    configuration: &Configuration,
+) -> TokenStorageResult {
     let (local_storage, set_local_storage, remove_local_storage) =
-        use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(
-            LOCAL_STORAGE_KEY,
-        );
+        use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY);
 
     let auth_response = use_query::<CallbackResponse>();
     match auth_response.get_untracked() {
@@ -368,8 +378,7 @@ async fn init_auth_resource(parameters: &AuthParameters, configuration: &Configu
                 }
             }
 
-            let token_storage =
-                fetch_token(parameters, configuration, response).await?;
+            let token_storage = fetch_token(parameters, configuration, response).await?;
 
             set_local_storage.update(|storage| *storage = Some(token_storage.clone()));
 
@@ -437,7 +446,10 @@ fn create_handle_refresh_effect(
                         .map(Some)
                     {
                         Ok(token_storage) => {
-                            let (_, set_storage, _) = use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY);
+                            let (_, set_storage, _) =
+                                use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(
+                                    LOCAL_STORAGE_KEY,
+                                );
                             set_storage.set(token_storage);
                         }
                         Err(error) => {

@@ -13,9 +13,7 @@ fn main() {
         .with_writer(tracing_web::MakeConsoleWriter)
         .pretty();
 
-    tracing_subscriber::registry()
-        .with(fmt_layer)
-        .init();
+    tracing_subscriber::registry().with(fmt_layer).init();
 
     mount_to_body(|| view! { <App /> })
 }

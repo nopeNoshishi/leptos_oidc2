@@ -21,10 +21,10 @@
 * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 * SOFTWARE.
 */
+use crate::Auth;
 use leptos::attr::AttributeValue;
 use leptos::prelude::*;
 use leptos::tachys::html::class::IntoClass;
-use crate::Auth;
 
 /// A transparent component representing authenticated user status.
 /// It provides a way to conditionally render its children based on the user's authentication status.
@@ -40,7 +40,7 @@ pub fn Authenticated(
     let unauthenticated = move || unauthenticated.run();
     let authenticated = move || auth.authenticated();
     let children = StoredValue::new(children);
-    
+
     view! {
         <Transition fallback=loading>
             <Show
