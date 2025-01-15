@@ -56,7 +56,7 @@ pub use error::AuthError;
 pub type Algorithm = jsonwebtoken::Algorithm;
 pub type TokenData<T> = jsonwebtoken::TokenData<T>;
 pub type Validation = jsonwebtoken::Validation;
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IssuerMetadata {
     configuration: Configuration,
     keys: Keys,
@@ -103,7 +103,7 @@ pub struct Keys {
 
 /// Authentication handler responsible for handling user authentication and
 /// token management.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Auth {
     parameters: AuthParameters,
     issuer: IssuerMetadata,
@@ -119,9 +119,8 @@ impl Auth {
             let parameters = parameters.clone();
             async move {
                 let issuer = init_issuer_resource(&parameters).await;
-                let token_store = RwSignal::new(
-                    init_auth_resource(&parameters, &issuer.configuration).await,
-                );
+                let token_store =
+                    RwSignal::new(init_auth_resource(&parameters, &issuer.configuration).await);
 
                 create_handle_refresh_effect(
                     parameters.clone(),
@@ -269,20 +268,25 @@ impl Auth {
         let mut validation = Validation::new(algorithm);
         validation.set_audience(audience);
 
-        self.token_store.get().as_ref().ok().flatten().map(|response| {
-            for key in &self.issuer.keys.keys {
-                let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
-                    continue;
-                };
+        self.token_store
+            .get()
+            .as_ref()
+            .ok()
+            .flatten()
+            .map(|response| {
+                for key in &self.issuer.keys.keys {
+                    let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
+                        continue;
+                    };
 
-                match decode::<T>(&response.id_token, &decoding_key, &validation) {
-                    Ok(data) => return Some(data),
-                    Err(_) => continue,
+                    match decode::<T>(&response.id_token, &decoding_key, &validation) {
+                        Ok(data) => return Some(data),
+                        Err(_) => continue,
+                    }
                 }
-            }
 
-            None
-        })
+                None
+            })
     }
 
     /// Returns the decoded access token, if available, from the authentication response.
@@ -295,20 +299,25 @@ impl Auth {
         let mut validation = Validation::new(algorithm);
         validation.set_audience(audience);
 
-        self.token_store.get().as_ref().ok().flatten().map(|response| {
-            for key in &self.issuer.keys.keys {
-                let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
-                    continue;
-                };
+        self.token_store
+            .get()
+            .as_ref()
+            .ok()
+            .flatten()
+            .map(|response| {
+                for key in &self.issuer.keys.keys {
+                    let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
+                        continue;
+                    };
 
-                match decode::<T>(&response.access_token, &decoding_key, &validation) {
-                    Ok(data) => return Some(data),
-                    Err(_) => continue,
+                    match decode::<T>(&response.access_token, &decoding_key, &validation) {
+                        Ok(data) => return Some(data),
+                        Err(_) => continue,
+                    }
                 }
-            }
 
-            None
-        })
+                None
+            })
     }
 
     /// This can be used to set the `redirect_uri` dynamically. It's helpful if
@@ -424,49 +433,50 @@ fn create_handle_refresh_effect(
     token_storage_signal: RwSignal<TokenStorageResult>,
 ) {
     Effect::new(move || {
-        let Ok(Some(token_storage)) = token_storage_signal.get_untracked() else {
-            return;
-        };
+        if let Ok(Some(token_storage)) = token_storage_signal.get() {
+            let expires_in = token_storage.expires_in - Local::now().naive_utc();
+            #[allow(clippy::cast_precision_loss)]
+            let wait_milliseconds =
+                (expires_in.num_seconds() as f64 - REFRESH_TOKEN_SECONDS_BEFORE as f64).max(0.0)
+                    * 1000.0;
 
-        let expires_in = token_storage.expires_in - Local::now().naive_utc();
-        #[allow(clippy::cast_precision_loss)]
-        let wait = (expires_in.num_seconds() as f64 - REFRESH_TOKEN_SECONDS_BEFORE as f64).max(0.0)
-            * 1000.0;
-
-        let UseTimeoutFnReturn { start, .. } = use_timeout_fn(
-            move |(parameters, configuration, resource, token): (
-                AuthParameters,
-                Configuration,
-                RwSignal<TokenStorageResult>,
-                String,
-            )| {
-                spawn_local(async move {
-                    match refresh_token(&parameters, &configuration, token)
-                        .await
-                        .map(Some)
-                    {
-                        Ok(token_storage) => {
-                            let (_, set_storage, _) =
-                                use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(
-                                    LOCAL_STORAGE_KEY,
-                                );
-                            set_storage.set(token_storage);
+            let UseTimeoutFnReturn { start, .. } = use_timeout_fn(
+                move |(parameters, configuration, token_signal, refresh_token): (
+                    AuthParameters,
+                    Configuration,
+                    RwSignal<TokenStorageResult>,
+                    String,
+                )| {
+                    spawn_local(async move {
+                        let (_, set_storage, remove_storage) =
+                            use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(
+                                LOCAL_STORAGE_KEY,
+                            );
+                        match refresh_token_request(&parameters, &configuration, refresh_token)
+                            .await
+                            .map(Some)
+                        {
+                            Ok(token_storage) => {
+                                token_signal.set(Ok(token_storage.clone())); // change signal to re-run effect
+                                set_storage.set(token_storage);
+                            }
+                            Err(error) => {
+                                token_signal.set(Err(error)); // change signal to re-run effect
+                                remove_storage();
+                            }
                         }
-                        Err(error) => {
-                            resource.set(Err(error));
-                        }
-                    }
-                });
-            },
-            wait,
-        );
+                    });
+                },
+                wait_milliseconds,
+            );
 
-        start((
-            parameters.clone(),
-            configuration.clone(),
-            token_storage_signal,
-            token_storage.refresh_token.clone(),
-        ));
+            start((
+                parameters.clone(),
+                configuration.clone(),
+                token_storage_signal,
+                token_storage.refresh_token.clone(),
+            ));
+        }
     });
 }
 
@@ -513,9 +523,9 @@ async fn fetch_token(
     }
 }
 
-/// Asynchronous function for refetching an authentication token.
+/// Asynchronous function for re-fetching an authentication token.
 /// This function is used to exchange a new access token and refresh token.
-async fn refresh_token(
+async fn refresh_token_request(
     parameters: &AuthParameters,
     configuration: &Configuration,
     refresh_token: String,

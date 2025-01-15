@@ -60,7 +60,7 @@ pub fn AuthInitialized(
 
     view! {
         <Suspense fallback>
-            { 
+            {
                 move || {
                 Suspend::new(async move {
                     // provides authentication data in leptos context
@@ -75,7 +75,6 @@ pub fn AuthInitialized(
         </Suspense>
     }
 }
-
 
 /// A transparent component representing a login link.
 /// It generates a login URL and renders a link with the provided children and optional CSS class.
