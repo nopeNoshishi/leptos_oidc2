@@ -15,5 +15,5 @@ fn main() {
 
     tracing_subscriber::registry().with(fmt_layer).init();
 
-    mount_to_body(|| view! { <App /> })
+    mount_to_body(|| view! { <App /> });
 }

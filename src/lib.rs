@@ -110,6 +110,16 @@ pub struct Auth {
     token_store: RwSignal<TokenStorageResult>,
 }
 
+trait DecodeTokenStorage {
+    fn decode_token_storage(&self) -> Option<TokenStorage>;
+}
+
+impl DecodeTokenStorage for RwSignal<TokenStorageResult> {
+    fn decode_token_storage(&self) -> Option<TokenStorage> {
+        self.get().ok().flatten()
+    }
+}
+
 impl Auth {
     /// Initializes a new `Auth` instance with the provided authentication
     /// parameters. This function creates and returns an `Auth` struct
@@ -220,19 +230,12 @@ impl Auth {
         Some(url)
     }
 
-    /// Checks if the authentication process is currently loading.
-    #[deprecated]
-    pub fn loading(&self) -> bool {
-        unimplemented!()
-    }
-
     /// Checks if the user is authenticated.
     #[must_use]
     pub fn authenticated(&self) -> bool {
         self.token_store
-            .get()
-            .ok()
-            .and_then(|storage| storage.map(|token| token.is_valid()))
+            .decode_token_storage()
+            .map(|storage| storage.is_valid())
             .unwrap_or(false)
     }
 
@@ -240,53 +243,27 @@ impl Auth {
     #[must_use]
     pub fn id_token(&self) -> Option<String> {
         self.token_store
-            .get()
-            .as_ref()
-            .ok()
-            .flatten()
-            .map(|response| response.id_token.clone())
+            .decode_token_storage()
+            .map(|response| response.id_token)
     }
 
     /// Returns the access token, if available, from the authentication response.
     #[must_use]
     pub fn access_token(&self) -> Option<String> {
         self.token_store
-            .get()
-            .as_ref()
-            .ok()
-            .flatten()
-            .map(|response| response.access_token.clone())
+            .decode_token_storage()
+            .map(|response| response.access_token)
     }
 
-    /// Returns the decoded access token, if available, from the authentication response.
+    /// Returns the decoded id token, if available, from the authentication response.
     #[must_use]
     pub fn decoded_id_token<T: DeserializeOwned>(
         &self,
         algorithm: Algorithm,
         audience: &[&str],
-    ) -> Option<Option<TokenData<T>>> {
-        let mut validation = Validation::new(algorithm);
-        validation.set_audience(audience);
-
-        self.token_store
-            .get()
-            .as_ref()
-            .ok()
-            .flatten()
-            .map(|response| {
-                for key in &self.issuer.keys.keys {
-                    let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
-                        continue;
-                    };
-
-                    match decode::<T>(&response.id_token, &decoding_key, &validation) {
-                        Ok(data) => return Some(data),
-                        Err(_) => continue,
-                    }
-                }
-
-                None
-            })
+    ) -> Option<TokenData<T>> {
+        let token = self.token_store.decode_token_storage()?.id_token;
+        self.decode_token(algorithm, audience, token)
     }
 
     /// Returns the decoded access token, if available, from the authentication response.
@@ -295,29 +272,31 @@ impl Auth {
         &self,
         algorithm: Algorithm,
         audience: &[&str],
-    ) -> Option<Option<TokenData<T>>> {
+    ) -> Option<TokenData<T>> {
+        let token = self.token_store.decode_token_storage()?.access_token;
+        self.decode_token(algorithm, audience, token)
+    }
+
+    fn decode_token<T: DeserializeOwned>(
+        &self,
+        algorithm: Algorithm,
+        audience: &[&str],
+        token: String,
+    ) -> Option<TokenData<T>> {
         let mut validation = Validation::new(algorithm);
         validation.set_audience(audience);
 
-        self.token_store
-            .get()
-            .as_ref()
-            .ok()
-            .flatten()
-            .map(|response| {
-                for key in &self.issuer.keys.keys {
-                    let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
-                        continue;
-                    };
+        for key in &self.issuer.keys.keys {
+            let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
+                continue;
+            };
 
-                    match decode::<T>(&response.access_token, &decoding_key, &validation) {
-                        Ok(data) => return Some(data),
-                        Err(_) => continue,
-                    }
-                }
-
-                None
-            })
+            match decode::<T>(&token, &decoding_key, &validation) {
+                Ok(data) => return Some(data),
+                Err(_) => continue,
+            }
+        }
+        None
     }
 
     /// This can be used to set the `redirect_uri` dynamically. It's helpful if
@@ -331,7 +310,7 @@ impl Auth {
 ///
 /// # Panics
 ///
-/// The init function can panic when the issuer and jwks could ne be fetched successfully.
+/// The init function can panic when the issuer and jwks could not be fetched successfully.
 async fn init_issuer_resource(parameters: &AuthParameters) -> IssuerMetadata {
     let configuration = reqwest::Client::new()
         .get(format!(

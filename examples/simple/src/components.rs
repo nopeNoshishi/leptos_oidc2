@@ -11,7 +11,7 @@ pub fn App() -> impl IntoView {
         issuer: "http://localhost:8082/realms/master".to_string(),
         client_id: "leptos".to_string(),
         redirect_uri: "http://localhost:3000/profile".to_string(),
-        post_logout_redirect_uri: "http://localhost:3000/".to_string(),
+        post_logout_redirect_uri: "http://localhost:3000".to_string(),
         challenge: Challenge::S256,
         scope: Some("openid%20profile%20email".to_string()),
         audience: None,
@@ -34,18 +34,16 @@ pub fn App() -> impl IntoView {
 
                         // This is an example route for your profile, it will render
                         // loading if it's still loading, render unauthenticated if it's
-                        // unauthenticated and it will render the children, if it's
+                        // unauthenticated, and it will render the children, if it's
                         // authenticated
                         <Route
                             path=path!("/profile")
                             view=move || {
                                 view! {
-                                    <h2>Profile page</h2>
                                     <Authenticated
                                         unauthenticated=Unauthenticated
                                     >
                                         <Profile/>
-                                        <LogoutLink class="text-logout">Sign out</LogoutLink>
                                     </Authenticated>
                                 }
                             }
@@ -63,8 +61,9 @@ pub fn Home() -> impl IntoView {
     view! {
         <Title text="Home"/>
         <h1>Home</h1>
+        <p>Your Landing Page without authentication</p>
+        <a href="/profile">Profile page</a>
 
-        // Your Some Page without authentication
     }
 }
 
@@ -74,6 +73,7 @@ pub fn Loading() -> impl IntoView {
     view! {
         <Title text="Loading"/>
         <h1>Loading</h1>
+        <p>Waiting for authentication backend to respond.</p>
 
         // Your Loading Page/Animation
     }
@@ -96,7 +96,8 @@ pub fn Profile() -> impl IntoView {
     view! {
         <Title text="Profile"/>
         <h1>Profile</h1>
-
+        <div><a href="/">Home</a></div>
+        <LogoutLink class="text-logout">Sign out</LogoutLink>
         // Your Profile Page
     }
 }
