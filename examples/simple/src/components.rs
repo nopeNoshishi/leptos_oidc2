@@ -9,7 +9,7 @@ pub fn App() -> impl IntoView {
     provide_meta_context();
     let parameters = AuthParameters {
         issuer: "http://localhost:8082/realms/master".to_string(),
-        client_id: "leptos".to_string(),
+        client_id: "leptos-client".to_string(),
         redirect_uri: "http://localhost:3000/profile".to_string(),
         post_logout_redirect_uri: "http://localhost:3000".to_string(),
         challenge: Challenge::S256,
