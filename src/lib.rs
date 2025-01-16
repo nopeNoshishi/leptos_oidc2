@@ -125,11 +125,11 @@ impl Auth {
     /// parameters. This function creates and returns an `Auth` struct
     /// configured for authentication.
     #[must_use]
-    pub fn init(parameters: AuthParameters) -> LocalResource<Self> {
+    pub fn init(parameters: AuthParameters) -> LocalResource<Result<Self, AuthError>> {
         LocalResource::new(move || {
             let parameters = parameters.clone();
             async move {
-                let issuer = init_issuer_resource(&parameters).await;
+                let issuer = init_issuer_resource(&parameters).await?;
                 let token_store =
                     RwSignal::new(init_auth_resource(&parameters, &issuer.configuration).await);
 
@@ -138,11 +138,11 @@ impl Auth {
                     issuer.configuration.clone(),
                     token_store,
                 );
-                Self {
+                Ok(Self {
                     parameters,
                     issuer,
                     token_store,
-                }
+                })
             }
         })
     }
@@ -311,7 +311,7 @@ impl Auth {
 /// # Panics
 ///
 /// The init function can panic when the issuer and jwks could not be fetched successfully.
-async fn init_issuer_resource(parameters: &AuthParameters) -> IssuerMetadata {
+async fn init_issuer_resource(parameters: &AuthParameters) -> Result<IssuerMetadata, AuthError> {
     let configuration = reqwest::Client::new()
         .get(format!(
             "{}/.well-known/openid-configuration",
@@ -319,24 +319,24 @@ async fn init_issuer_resource(parameters: &AuthParameters) -> IssuerMetadata {
         ))
         .send()
         .await
-        .unwrap()
+        .map_err(Arc::new)?
         .json::<Configuration>()
         .await
-        .unwrap();
+        .map_err(Arc::new)?;
 
     let keys = reqwest::Client::new()
         .get(configuration.jwks_uri.clone())
         .send()
         .await
-        .unwrap()
+        .map_err(Arc::new)?
         .json::<Keys>()
         .await
-        .unwrap();
+        .map_err(Arc::new)?;
 
-    IssuerMetadata {
+    Ok(IssuerMetadata {
         configuration,
         keys,
-    }
+    })
 }
 
 /// Initialize the auth resource, which will handle the entire state of the authentication.
@@ -344,7 +344,7 @@ async fn init_auth_resource(
     parameters: &AuthParameters,
     configuration: &Configuration,
 ) -> TokenStorageResult {
-    let (local_storage, set_local_storage, remove_local_storage) =
+    let (local_storage, set_local_storage, _remove_local_storage) =
         use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY);
 
     let auth_response = use_query::<CallbackResponse>();
@@ -368,11 +368,12 @@ async fn init_auth_resource(
 
             let token_storage = fetch_token(parameters, configuration, response).await?;
 
-            set_local_storage.update(|storage| *storage = Some(token_storage.clone()));
+            set_local_storage.set(Some(token_storage.clone()));
 
             Ok(Some(token_storage))
         }
         Ok(CallbackResponse::SuccessLogout(response)) => {
+            tracing::debug!("Logout redirect");
             use_navigate()(
                 &parameters.post_logout_redirect_uri,
                 NavigateOptions {
@@ -382,9 +383,11 @@ async fn init_auth_resource(
                     state: leptos_router::location::State::new(None),
                 },
             );
-
+            tracing::debug!("Logout: before destroying session");
             if response.destroy_session {
-                remove_local_storage();
+                tracing::debug!("Logout: destroying session");
+                set_local_storage.set(None);
+                //remove_local_storage(); // does not seem to delete local storage
             }
 
             Ok(None)
@@ -395,7 +398,8 @@ async fn init_auth_resource(
                 if token_storage.is_valid() {
                     Ok(Some(token_storage))
                 } else {
-                    remove_local_storage();
+                    set_local_storage.set(None);
+                    // remove_local_storage(); TODO: remove
                     Ok(None)
                 }
             } else {

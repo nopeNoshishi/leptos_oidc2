@@ -79,6 +79,18 @@ pub fn Loading() -> impl IntoView {
     }
 }
 
+// #[component]
+// pub fn ErrorPage(
+//     message: String,
+// ) -> impl IntoView {
+//     view! {
+//         <Title text="Error"/>
+//         <h1>Error occurred</h1>
+//         <p>{ message }</p>
+//
+//     }
+// }
+
 /// This will be rendered, if the user is unauthenticated
 #[component]
 pub fn Unauthenticated() -> impl IntoView {

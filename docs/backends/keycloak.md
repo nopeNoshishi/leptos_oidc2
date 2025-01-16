@@ -26,47 +26,8 @@ And of course, don't forget to save at the end. \
 
 ## Setup leptos_oidc
 
-All you need to do is to setup everything with the init function. In this
+All you need to do is to set up everything with the init function. In this
 example the config would look like this:
-
-```rust
-use leptos::*;
-use leptos_oidc::Auth;
-
-#[component]
-pub fn App() -> impl IntoView {
-    provide_meta_context();
-
-    view! {
-        <Stylesheet id="leptos" href="/pkg/main.css"/>
-
-        <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
-
-        <Router>
-            <AppWithRouter/>
-        </Router>
-    }
-}
-
-#[component]
-pub fn AppWithRouter() -> impl IntoView {
-    // Specify OIDC authentication parameters here.
-    // Note: This is an example for keycloak, please change it to your needs
-    let auth_parameters = AuthParameters {
-        issuer: "http://localhost:8080/auth/realms/myrealm".to_string(),
-        client_id: "localdev".to_string(),
-        redirect_uri: "http://localhost:3000".to_string(),
-        post_logout_redirect_uri: "http://localhost:3000".to_string(),
-        challenge: Challenge::S256,
-        scope: None,
-        audience: None,
-    };
-    let auth = Auth::init(auth_parameters);
-
-    view! {
-        // Your stuff
-    }
-}
-```
+[auth](../../examples/simple/src/components.rs)
 
 Please keep in mind to set your realm correctly, otherwise it won't work.

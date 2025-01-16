@@ -67,7 +67,8 @@ create_public_client() {
   CLIENT_REDIRECT_URI="$2"
   CLIENT_POST_LOGOUT_REDIRECT_URI="$3"
   CLIENT_WEB_ORIGINS="$4"
-  CLIENT_REALM="${5:-$REALM}"
+  CLIENT_ACCESS_TOKEN_LIFESPAN="${5:-300}"
+  CLIENT_REALM="${6:-$REALM}"
 
   if [ -z "$CLIENT_REALM" ]; then
     echo "ERROR: No realm provided for public client."
@@ -87,7 +88,7 @@ create_public_client() {
         "webOrigins": ["$CLIENT_WEB_ORIGINS"],
         "redirectUris": [$CLIENT_REDIRECT_URI],
         "attributes": {
-          "access.token.lifespan": "300",
+          "access.token.lifespan": "$CLIENT_ACCESS_TOKEN_LIFESPAN",
           "post.logout.redirect.uris": "$CLIENT_POST_LOGOUT_REDIRECT_URI"
         }
       }

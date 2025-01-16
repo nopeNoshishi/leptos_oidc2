@@ -22,7 +22,9 @@
 * SOFTWARE.
 */
 #![allow(clippy::must_use_candidate)]
+
 use crate::{Auth, AuthParameters};
+use leptos::either::Either;
 use leptos::prelude::*;
 
 /// A transparent component representing authenticated user status.
@@ -61,19 +63,37 @@ pub fn AuthInitialized(
 
     view! {
         <Suspense fallback>
-            {
-                move || {
+            { move || {
                 Suspend::new(async move {
-                    // provides authentication data in leptos context
-                    provide_context(auth.await);
-
-                    view! {
-                        { children.read_value()() }
+                    match auth.await {
+                        Ok(auth) => {
+                            // provides authentication data in leptos context
+                            provide_context(auth);
+                            Either::Right(view! {
+                                { children.read_value()() }
+                            })
+                        }
+                        Err(auth_error) => {
+                            let details = format!("{auth_error:?}");
+                            let message = "Failed to load identity provider metadata".to_string();
+                            Either::Left(view! {
+                                <ErrorPage message=message details/>
+                            })
+                        }
                     }
                 })
             }}
 
         </Suspense>
+    }
+}
+
+#[component]
+pub fn ErrorPage(message: String, details: String) -> impl IntoView {
+    view! {
+        <h1>Error occurred</h1>
+        <p>{ message }</p>
+        <p>{ details }</p>
     }
 }
 

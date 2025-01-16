@@ -54,10 +54,8 @@ impl From<SuccessTokenResponse> for TokenStorage {
         Self {
             id_token: value.id_token,
             access_token: value.access_token,
-            // TODO: expiration date = issued at datetime (iat field in access token) + expires_in (field in access token, validity in seconds)
-            // iat: identity provider, exp:
-            // Backend will validate that token is valid: iat field (issued at in seconds since epoch) < now < exp field (expiration time in seconds since epoch)
-            // we memorize when to get a new access token
+            // Backend will validate that token is valid: iat field (issued at in seconds since epoch) < now < exp field (expiration time in seconds since epoch) and token signature
+            // This shall memorize when to get a new access token
             expires_in: Utc::now().naive_utc()
                 + TimeDelta::try_seconds(value.expires_in).unwrap_or_default(),
             refresh_token: value.refresh_token,

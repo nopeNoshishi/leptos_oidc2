@@ -9,7 +9,8 @@ main() {
   wait_for_keycloak || { echo "Keycloak not ready, exiting"; exit 1;}
   kcauth
 
-  create_public_client "leptos-client" '"http://localhost:3000/profile", "http://localhost:3000/*"' 'http://localhost:3000?destroy_session=true' 'http://localhost:3000' "master"
+  CLIENT_ACCESS_TOKEN_LIFESPAN=300
+  create_public_client "leptos-client" '"http://localhost:3000/profile", "http://localhost:3000/*"' 'http://localhost:3000?destroy_session=true' 'http://localhost:3000' $CLIENT_ACCESS_TOKEN_LIFESPAN "master"
 
 }
 
