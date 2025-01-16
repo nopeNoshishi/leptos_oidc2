@@ -21,6 +21,7 @@
 * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 * SOFTWARE.
 */
+#![allow(clippy::must_use_candidate)]
 use crate::{Auth, AuthParameters};
 use leptos::prelude::*;
 

@@ -1,7 +1,12 @@
 # Changelog
 
-This is containing every changes, there are and there will be some bugs. But
+This is containing every change, there are and there will be some bugs. But
 tackling them down and documenting them will hopefully help you out. :)
+
+## v0.8.0
+
+- Major upgrade for leptos version 0.7 ([new leptos feature](https://github.com/leptos-rs/leptos/releases/tag/v0.7.0) `.await on resources and async in <Suspense/>`)
+- Update leptos-use, remove unused crate, [](https://gitlab.com/kerkmann/leptos_oidc/-/merge_requests/8/)
 
 ## v0.7.0
 

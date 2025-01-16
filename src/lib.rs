@@ -124,6 +124,7 @@ impl Auth {
     /// Initializes a new `Auth` instance with the provided authentication
     /// parameters. This function creates and returns an `Auth` struct
     /// configured for authentication.
+    #[must_use]
     pub fn init(parameters: AuthParameters) -> LocalResource<Self> {
         LocalResource::new(move || {
             let parameters = parameters.clone();
@@ -235,8 +236,7 @@ impl Auth {
     pub fn authenticated(&self) -> bool {
         self.token_store
             .decode_token_storage()
-            .map(|storage| storage.is_valid())
-            .unwrap_or(false)
+            .is_some_and(|storage| storage.is_valid())
     }
 
     /// Returns the ID token, if available, from the authentication response.
@@ -263,7 +263,7 @@ impl Auth {
         audience: &[&str],
     ) -> Option<TokenData<T>> {
         let token = self.token_store.decode_token_storage()?.id_token;
-        self.decode_token(algorithm, audience, token)
+        self.decode_token(algorithm, audience, &token)
     }
 
     /// Returns the decoded access token, if available, from the authentication response.
@@ -274,14 +274,14 @@ impl Auth {
         audience: &[&str],
     ) -> Option<TokenData<T>> {
         let token = self.token_store.decode_token_storage()?.access_token;
-        self.decode_token(algorithm, audience, token)
+        self.decode_token(algorithm, audience, &token)
     }
 
     fn decode_token<T: DeserializeOwned>(
         &self,
         algorithm: Algorithm,
         audience: &[&str],
-        token: String,
+        token: &str,
     ) -> Option<TokenData<T>> {
         let mut validation = Validation::new(algorithm);
         validation.set_audience(audience);
@@ -291,7 +291,7 @@ impl Auth {
                 continue;
             };
 
-            match decode::<T>(&token, &decoding_key, &validation) {
+            match decode::<T>(token, &decoding_key, &validation) {
                 Ok(data) => return Some(data),
                 Err(_) => continue,
             }

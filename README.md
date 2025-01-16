@@ -24,6 +24,7 @@ manage user authentication and tokens.
 |---------------|---------------------------|
 | <= 0.3        | 0.5                       |
 | 0.4-0.7       | 0.6                       |
+| 0.8           | 0.7                       |
 
 ## Features
 
@@ -45,7 +46,7 @@ manage user authentication and tokens.
 ### Tested Backends with Example
 
 **leptos_oidc** was tested with various backends. This doesn't mean that other
-backends are not supported. Every backend which is support `oidc` should work.
+backends are not supported. Every backend which supports `oidc` should work.
 But feel free to ask for advice or give feedback!
 
 Tested backends:
@@ -54,10 +55,6 @@ Tested backends:
 
 You can find a setup guide for the backends under [docs/backends](docs/backends/README.md).
 
-#### Keycloak
-
-#### Rauthy
-
 ## Installation
 
 To use **leptos_oidc** in your Leptos-based application, add it as a dependency
@@ -65,10 +62,10 @@ in your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-leptos_oidc = "0.7"
+leptos_oidc = "0.8"
 ```
 
-Note: This needs at least `leptos v0.6`.
+Note: This needs at least `leptos v0.7`.
 
 ## Usage
 

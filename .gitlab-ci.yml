@@ -6,6 +6,7 @@ stages:
   - lint
   - test
   - doc
+  - build_examples
   - build
 
 format:
@@ -39,6 +40,14 @@ doc:
   needs: ["lint"]
   script:
     - cargo doc --workspace --no-deps
+
+build_examples:
+  stage: build_examples
+  needs: ["test", "doc"]
+  script:
+    - |
+      cd examples/simple
+      cargo build
 
 build:
   stage: build

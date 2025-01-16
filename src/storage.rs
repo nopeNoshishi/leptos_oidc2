@@ -42,6 +42,7 @@ pub struct TokenStorage {
 }
 
 impl TokenStorage {
+    #[must_use]
     pub fn is_valid(&self) -> bool {
         self.expires_in >= Local::now().naive_utc()
     }
