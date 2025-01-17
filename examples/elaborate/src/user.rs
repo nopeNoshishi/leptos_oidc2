@@ -1,10 +1,17 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+enum Audience {
+    SingleAudience(String),
+    MultipleAudiences(Vec<String>),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct Claims {
-    /// Audience
+    /// Audience, either string or list of strings
     #[serde(rename = "aud")]
-    audience: String,
+    audience: Audience,
     /// Issued at (as UTC timestamp)
     #[serde(rename = "iat")]
     issued_at: usize,
@@ -24,13 +31,43 @@ pub(crate) struct Claims {
     #[serde(default = "Claims::empty_vector")]
     pub groups: Vec<String>,
     // Name of the user
-    pub name: String,
+    pub name: Option<String>,
     // Email address of the user
-    pub email: String,
+    pub email: Option<String>,
     // Username of the user
     pub preferred_username: String,
 }
 
 impl Claims {
     pub(crate) fn empty_vector() -> Vec<String> { Vec::new() }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_claims() {
+        let user_token = include_str!("../resources/leptos-token.json");
+        let claims: Claims = serde_json::from_str(user_token).unwrap();
+        match claims.audience {
+            Audience::SingleAudience(audience) => {
+                assert_eq!(audience, "account");
+            }
+            Audience::MultipleAudiences(_) => {}
+        }
+    }
+
+    #[test]
+    fn test_multiple_audiences() {
+        let admin_token = include_str!("../resources/admin-token.json");
+        let claims: Claims = serde_json::from_str(admin_token).unwrap();
+        match claims.audience {
+            Audience::SingleAudience(audience) => {
+            }
+            Audience::MultipleAudiences(audiences) => {
+                assert_eq!(audiences.len(), 2);
+            }
+        }
+
+    }
 }

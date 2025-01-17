@@ -1,0 +1,60 @@
+{
+  "exp": 1737149119,
+  "iat": 1737148819,
+  "auth_time": 1737148818,
+  "jti": "acef5826-c798-483c-8470-88531b1957b7",
+  "iss": "http://localhost:8082/realms/master",
+  "aud": [
+    "master-realm",
+    "account"
+  ],
+  "sub": "e5a579eb-7027-44a6-955d-7517e5be67d3",
+  "typ": "Bearer",
+  "azp": "leptos-client",
+  "sid": "e8c839ce-01c0-4ee8-8db0-e611c51ff428",
+  "acr": "1",
+  "allowed-origins": [
+    "http://localhost:3000"
+  ],
+  "resource_access": {
+    "master-realm": {
+      "roles": [
+        "view-realm",
+        "view-identity-providers",
+        "manage-identity-providers",
+        "impersonation",
+        "create-client",
+        "manage-users",
+        "query-realms",
+        "view-authorization",
+        "query-clients",
+        "query-users",
+        "manage-events",
+        "manage-realm",
+        "view-events",
+        "view-users",
+        "view-clients",
+        "manage-authorization",
+        "manage-clients",
+        "query-groups"
+      ]
+    },
+    "account": {
+      "roles": [
+        "manage-account",
+        "manage-account-links",
+        "view-profile"
+      ]
+    }
+  },
+  "scope": "openid email groups profile",
+  "email_verified": false,
+  "roles": [
+    "create-realm",
+    "default-roles-master",
+    "offline_access",
+    "admin",
+    "uma_authorization"
+  ],
+  "preferred_username": "admin"
+}

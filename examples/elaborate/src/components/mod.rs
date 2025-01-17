@@ -1,12 +1,12 @@
+use crate::user::Claims;
 use leptos::either::Either;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, Link, Stylesheet, Title};
-use leptos_oidc::{Algorithm, Auth, AuthError, AuthParameters, Authenticated, LoginLink, LogoutLink};
-use serde::Deserialize;
-use std::sync::Arc;
+use leptos_oidc::{Algorithm, Auth, AuthError, AuthLoaded, AuthParameters, Authenticated, LoginLink, LogoutLink};
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
-use crate::user::Claims;
+use serde::Deserialize;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum AppConfigError {
@@ -28,9 +28,26 @@ pub struct AppConfig {
     oidc: AuthParameters
 }
 
+#[derive(Clone)]
+pub struct AppGlobals {
+    auth_resource: LocalResource<Result<Auth, AuthError>>,
+}
+
+
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    let app_globals: LocalResource<Result<AppGlobals, AppConfigError>> = LocalResource::new(move || async {
+        let app_config = gloo_net::http::Request::get("/config.json")
+            .send().await
+            .map_err(Arc::new)?
+            .json::<AppConfig>().await
+            .map_err(Arc::new)?;
+        let auth = Auth::init(app_config.oidc.clone());
+
+        Ok(AppGlobals { auth_resource: auth })
+    });
+    provide_context(app_globals);
 
     view!{
         <Stylesheet id="leptos" href="/pkg/main.css"/>
@@ -62,49 +79,12 @@ pub fn App() -> impl IntoView {
 
 }
 
-#[must_use]
-#[component(transparent)]
-pub fn AuthLoaded(
-    children: ChildrenFn,
-    #[prop(optional, into)] fallback: ViewFnOnce,
-) -> impl IntoView {
-    let auth_resource = expect_context::<LocalResource<Result<Auth, AuthError>>>();
-    let children = StoredValue::new(children);
-
-    view! {
-        <Transition fallback>
-            { move || {
-                Suspend::new(async move {
-                    if let Ok(auth) = auth_resource.await {
-                        // provides authentication data in leptos context required by login/logout button
-                        provide_context(auth);
-                        Either::Right(view! {
-                            { children.read_value()() }
-                        })
-                    } else {
-                        Either::Left(())
-                    }
-                })
-            }}
-
-        </Transition>
-    }
-}
-
 #[component]
 pub fn AppConfigLoaded(
     children: ChildrenFn,
     #[prop(optional, into)] fallback: ViewFnOnce,
 ) -> impl IntoView {
-    let config: LocalResource<Result<AppConfig, AppConfigError>> = LocalResource::new(move || async {
-        let app_config = gloo_net::http::Request::get("/config.json")
-            .send().await
-            .map_err(Arc::new)?
-            .json::<AppConfig>().await
-            .map_err(Arc::new)?;
-
-        Ok(app_config)
-    });
+    let app_globals = expect_context::<LocalResource<Result<AppGlobals, AppConfigError>>>();
     let children = StoredValue::new(children);
 
     view! {
@@ -113,12 +93,11 @@ pub fn AppConfigLoaded(
         >
             { move || {
                 Suspend::new(async move {
-                    if let Ok(app_config) = config.await {
-                        let auth_resource = Auth::init(app_config.oidc);
+                    if let Ok(app_config) = app_globals.await {
+                        let auth_resource = app_config.auth_resource;
                         provide_context(auth_resource);
                         // provides authentication data in leptos context required by login/logout button
                         Either::Right(view! {
-                            <p>Config loaded</p>
                             <AuthLoaded fallback=Loading>
                                 { children.read_value()() }
                             </AuthLoaded>
@@ -196,7 +175,7 @@ pub fn Profile() -> impl IntoView {
         // Your Profile Page
         {
             match token {
-                None => Either::Left(()),
+                None => Either::Left(view!{ <p> Token is empty</p>}),
                 Some(token) => {
                     let groups = token.claims.groups.iter().map(|group| group.trim_start_matches('/')).collect::<Vec<_>>().join(", ");
                     let roles = token.claims.roles.into_iter().collect::<Vec<_>>().join(", ");
