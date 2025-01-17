@@ -134,6 +134,8 @@ fn MyComponent() {
 
         <Authenticated>"This will only be rendered if the user is authenticated"</Authenticated>
 
+        <AuthErrorContext>"This will only be rendered if there was an error during authentication"</AuthErrorContext>
+
         // A more complex example with optional fallbacks for the loading and unauthenticated state
         <Authenticated
             unauthenticated=move || view! { "this will only be renderd if the user is unauthenticated" }

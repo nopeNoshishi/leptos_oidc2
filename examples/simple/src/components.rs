@@ -1,6 +1,9 @@
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, Link, Stylesheet, Title};
-use leptos_oidc::{AuthInitialized, AuthParameters, Authenticated, Challenge, LoginLink, LogoutLink};
+use leptos_oidc::{
+    Auth, AuthError, AuthErrorContext, AuthLoaded, AuthLoading, AuthParameters, Authenticated,
+    Challenge, LoginLink, LogoutLink,
+};
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 
@@ -16,6 +19,8 @@ pub fn App() -> impl IntoView {
         scope: Some("openid%20profile%20email".to_string()),
         audience: None,
     };
+    let auth_resource = Auth::init(parameters);
+    provide_context(auth_resource);
 
     view! {
         <Stylesheet id="leptos" href="/pkg/main.css"/>
@@ -23,38 +28,45 @@ pub fn App() -> impl IntoView {
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
 
         <Router>
-            <AuthInitialized
-                parameters
-                fallback=Loading
-            >
-                <h1>Leptos OIDC</h1>
+            <AuthLoading><p>Authentication is loading</p></AuthLoading>
+            <AuthErrorContext><AuthErrorPage></AuthErrorPage></AuthErrorContext>
 
-                    <Routes fallback=Home>
-                        <Route path=path!("/") view=Home/>
+            <h1>Leptos OIDC</h1>
+                <Routes fallback=Home>
+                    <Route path=path!("/") view=Home/>
 
-                        // This is an example route for your profile, it will render
-                        // loading if it's still loading, render unauthenticated if it's
-                        // unauthenticated, and it will render the children, if it's
-                        // authenticated
-                        <Route
-                            path=path!("/profile")
-                            view=move || {
-                                view! {
-                                    <Authenticated
-                                        unauthenticated=Unauthenticated
-                                    >
+                    // This is an example route for your profile, it will render
+                    // loading if it's still loading, render unauthenticated if it's
+                    // unauthenticated, and it will render the children, if it's
+                    // authenticated
+                    <Route
+                        path=path!("/profile")
+                        view=|| {
+                            view! {
+                                <AuthLoaded fallback=Loading>
+                                    <Authenticated unauthenticated=Unauthenticated>
                                         <Profile/>
                                     </Authenticated>
-                                }
+                                </AuthLoaded>
                             }
-                        />
-                    </Routes>
-            </AuthInitialized>
+                        }
+                    />
+                </Routes>
         </Router>
 
     }
 }
 
+#[component]
+pub fn AuthErrorPage() -> impl IntoView {
+    let auth_error = expect_context::<AuthError>();
+    let error_message = format!("{auth_error:?}");
+    view! {
+        <h1>Error occurred</h1>
+        <p>There was an error in the authentication process!</p>
+        { error_message }
+    }
+}
 
 #[component]
 pub fn Home() -> impl IntoView {
@@ -79,24 +91,13 @@ pub fn Loading() -> impl IntoView {
     }
 }
 
-// #[component]
-// pub fn ErrorPage(
-//     message: String,
-// ) -> impl IntoView {
-//     view! {
-//         <Title text="Error"/>
-//         <h1>Error occurred</h1>
-//         <p>{ message }</p>
-//
-//     }
-// }
-
 /// This will be rendered, if the user is unauthenticated
 #[component]
 pub fn Unauthenticated() -> impl IntoView {
     view! {
         <Title text="Unauthenticated"/>
         <h1>Unauthenticated</h1>
+        <div><a href="/">Home</a></div>
         <LoginLink class="text-login">Sign in</LoginLink>
         // Your Unauthenticated Page
     }

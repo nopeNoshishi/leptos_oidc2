@@ -23,7 +23,7 @@
 */
 #![allow(clippy::must_use_candidate)]
 
-use crate::{Auth, AuthParameters};
+use crate::{Auth, AuthError};
 use leptos::either::Either;
 use leptos::prelude::*;
 
@@ -53,47 +53,30 @@ pub fn Authenticated(
 
 #[must_use]
 #[component(transparent)]
-pub fn AuthInitialized(
+pub fn AuthLoaded(
     children: ChildrenFn,
-    parameters: AuthParameters,
     #[prop(optional, into)] fallback: ViewFnOnce,
 ) -> impl IntoView {
-    let auth = Auth::init(parameters);
+    let auth_resource = expect_context::<LocalResource<Result<Auth, AuthError>>>();
     let children = StoredValue::new(children);
 
     view! {
         <Suspense fallback>
             { move || {
                 Suspend::new(async move {
-                    match auth.await {
-                        Ok(auth) => {
-                            // provides authentication data in leptos context
-                            provide_context(auth);
-                            Either::Right(view! {
-                                { children.read_value()() }
-                            })
-                        }
-                        Err(auth_error) => {
-                            let details = format!("{auth_error:?}");
-                            let message = "Failed to load identity provider metadata".to_string();
-                            Either::Left(view! {
-                                <ErrorPage message=message details/>
-                            })
-                        }
+                    if let Ok(auth) = auth_resource.await {
+                        // provides authentication data in leptos context required by login/logout button
+                        provide_context(auth);
+                        Either::Right(view! {
+                            { children.read_value()() }
+                        })
+                    } else {
+                        Either::Left(())
                     }
                 })
             }}
 
         </Suspense>
-    }
-}
-
-#[component]
-pub fn ErrorPage(message: String, details: String) -> impl IntoView {
-    view! {
-        <h1>Error occurred</h1>
-        <p>{ message }</p>
-        <p>{ details }</p>
     }
 }
 
@@ -130,5 +113,46 @@ pub fn LogoutLink(
         <a href=logout_url class=class>
             {children()}
         </a>
+    }
+}
+
+#[must_use]
+#[component(transparent)]
+pub fn AuthLoading(children: ChildrenFn) -> impl IntoView {
+    let auth_resource = expect_context::<LocalResource<Result<Auth, AuthError>>>();
+
+    view! {
+        <Suspense fallback=move || children() >
+            { move || {
+                Suspend::new(async move {
+                    let _ = auth_resource.await;
+                })
+            }}
+        </Suspense>
+    }
+}
+
+#[must_use]
+#[component(transparent)]
+pub fn AuthErrorContext(children: ChildrenFn) -> impl IntoView {
+    let auth_resource = expect_context::<LocalResource<Result<Auth, AuthError>>>();
+    let children = StoredValue::new(children);
+
+    view! {
+        <Suspense fallback=move || () >
+            { move || {
+                Suspend::new(async move {
+                    let result = auth_resource.await;
+                    if let Err(auth_error) = result {
+                        provide_context(auth_error);
+                        Either::Right(view! {
+                            { children.read_value()() }
+                        })
+                    } else {
+                        Either::Left(())
+                    }
+                })
+            }}
+        </Suspense>
     }
 }
