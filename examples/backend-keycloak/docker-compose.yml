@@ -25,7 +25,7 @@ services:
     build:
       dockerfile: ./Dockerfile
     # uncomment this to stop container after provisioning is done
-    command: [ "sleep" ]
+    #command: [ "sleep" ]
     entrypoint: [ "/provision.sh" ]
     # for fast update of provisioning the scripts are mounted as volumes
     volumes:

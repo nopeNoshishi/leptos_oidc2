@@ -1,0 +1,11 @@
+{
+  "oidc": {
+    "issuer": "http://localhost:8082/realms/master",
+    "client_id": "leptos-client",
+    "redirect_uri": "http://localhost:3000/profile",
+    "post_logout_redirect_uri": "http://localhost:3000/profile",
+    "challenge": "S256",
+    "scope": "openid%20profile%20email",
+    "audience": null
+  }
+}
