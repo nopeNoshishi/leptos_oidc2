@@ -1,0 +1,23 @@
+{
+  "exp": 1737151278,
+  "iat": 1737150978,
+  "auth_time": 1737150708,
+  "jti": "51722de3-e904-421b-b6cd-2758eae1a252",
+  "iss": "http://localhost:8082/realms/master",
+  "aud": "leptos-client",
+  "sub": "e5a579eb-7027-44a6-955d-7517e5be67d3",
+  "typ": "ID",
+  "azp": "leptos-client",
+  "sid": "ae078d65-2145-459c-b335-486ee95ec99b",
+  "at_hash": "pHi0CGJwbUB6oeChhAfdVQ",
+  "acr": "1",
+  "email_verified": false,
+  "roles": [
+    "create-realm",
+    "default-roles-master",
+    "offline_access",
+    "admin",
+    "uma_authorization"
+  ],
+  "preferred_username": "admin"
+}

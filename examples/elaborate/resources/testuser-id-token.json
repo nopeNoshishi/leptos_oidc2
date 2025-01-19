@@ -1,0 +1,29 @@
+{
+  "exp": 1737151386,
+  "iat": 1737151086,
+  "auth_time": 1737151086,
+  "jti": "8629a811-d54d-433d-8528-dc85a97e52bf",
+  "iss": "http://localhost:8082/realms/master",
+  "aud": "leptos-client",
+  "sub": "49a7d785-35b7-485c-93c0-1343c2825eca",
+  "typ": "ID",
+  "azp": "leptos-client",
+  "sid": "37a4e541-3d62-49e6-90c7-96200f2446bd",
+  "at_hash": "UljFzNC2MqeOtWT1blftsQ",
+  "acr": "1",
+  "email_verified": false,
+  "roles": [
+    "default-roles-master",
+    "offline_access",
+    "uma_authorization",
+    "testrole"
+  ],
+  "name": "Firstname Lastname",
+  "groups": [
+    "/testgroup"
+  ],
+  "preferred_username": "testuser",
+  "given_name": "Firstname",
+  "family_name": "Lastname",
+  "email": "testuser@example.com"
+}

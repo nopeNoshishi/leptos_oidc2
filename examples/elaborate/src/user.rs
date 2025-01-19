@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 enum Audience {
     SingleAudience(String),
     MultipleAudiences(Vec<String>),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Claims {
     /// Audience, either string or list of strings
     #[serde(rename = "aud")]
@@ -39,7 +39,15 @@ pub(crate) struct Claims {
 }
 
 impl Claims {
-    pub(crate) fn empty_vector() -> Vec<String> { Vec::new() }
+    pub(crate) fn empty_vector() -> Vec<String> {
+        Vec::new()
+    }
+    pub(crate) fn has_group(&self, group: &str) -> bool {
+        self.groups.contains(&format!("/{group}"))
+    }
+    pub(crate) fn has_role(&self, role: &str) -> bool {
+        self.roles.contains(&role.to_string())
+    }
 }
 
 #[cfg(test)]
@@ -62,12 +70,10 @@ mod tests {
         let admin_token = include_str!("../resources/admin-token.json");
         let claims: Claims = serde_json::from_str(admin_token).unwrap();
         match claims.audience {
-            Audience::SingleAudience(audience) => {
-            }
+            Audience::SingleAudience(audience) => {}
             Audience::MultipleAudiences(audiences) => {
                 assert_eq!(audiences.len(), 2);
             }
         }
-
     }
 }

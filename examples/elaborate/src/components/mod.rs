@@ -2,15 +2,17 @@ use crate::user::Claims;
 use leptos::either::Either;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, Link, Stylesheet, Title};
-use leptos_oidc::{Algorithm, Auth, AuthError, AuthLoaded, AuthParameters, Authenticated, LoginLink, LogoutLink};
+use leptos_oidc::{
+    Algorithm, Auth, AuthError, AuthLoaded, AuthParameters, Authenticated, LoginLink, LogoutLink,
+};
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 use serde::Deserialize;
+use std::ops::Deref;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum AppConfigError {
-
     /// An error related to handling parameters.
     #[error("params error: {0}")]
     Params(#[from] leptos_router::params::ParamsError),
@@ -25,7 +27,7 @@ pub enum AppConfigError {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppConfig {
-    oidc: AuthParameters
+    oidc: AuthParameters,
 }
 
 #[derive(Clone)]
@@ -33,23 +35,61 @@ pub struct AppGlobals {
     auth_resource: LocalResource<Result<Auth, AuthError>>,
 }
 
+impl Deref for AppGlobals {
+    type Target = LocalResource<Result<Auth, AuthError>>;
+    fn deref(&self) -> &Self::Target {
+        &self.auth_resource
+    }
+}
 
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
-    let app_globals: LocalResource<Result<AppGlobals, AppConfigError>> = LocalResource::new(move || async {
-        let app_config = gloo_net::http::Request::get("/config.json")
-            .send().await
-            .map_err(Arc::new)?
-            .json::<AppConfig>().await
-            .map_err(Arc::new)?;
-        let auth = Auth::init(app_config.oidc.clone());
+    let app_globals: LocalResource<Result<AppGlobals, AppConfigError>> =
+        LocalResource::new(move || async {
+            let app_config = gloo_net::http::Request::get("/config.json")
+                .send()
+                .await
+                .map_err(Arc::new)?
+                .json::<AppConfig>()
+                .await
+                .map_err(Arc::new)?;
+            let auth = Auth::init(app_config.oidc.clone());
 
-        Ok(AppGlobals { auth_resource: auth })
-    });
+            Ok(AppGlobals {
+                auth_resource: auth,
+            })
+        });
     provide_context(app_globals);
+    let (claims, set_claims) = signal::<Option<Claims>>(None);
 
-    view!{
+    Effect::new(move || match app_globals.get() {
+        None => {}
+        Some(globals) => {
+            if let Ok(globals) = &*globals {
+                let auth_resource = globals.get();
+                match auth_resource {
+                    None => {}
+                    Some(auth) => {
+                        if let Ok(auth) = &*auth {
+                            let token =
+                                auth.decoded_access_token::<Claims>(Algorithm::RS256, &["account"]);
+                            let claims = token.map(|token| token.claims);
+                            set_claims.set(claims);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    let claims_string = move || claims.get().map(|claim| format!("{claim:?}"));
+    let testgroup =
+        move || claims.with(|claim| claim.clone().map(|claim| claim.has_group("testgroup")));
+    let manager =
+        move || claims.with(|claim| claim.clone().map(|claim| claim.has_role("managerrole")));
+
+    view! {
         <Stylesheet id="leptos" href="/pkg/main.css"/>
 
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
@@ -57,6 +97,9 @@ pub fn App() -> impl IntoView {
 
         <Router>
             <h1>Leptos OIDC</h1>
+                <p>Claims: { claims_string }</p>
+                <p>Test group: { testgroup }</p>
+                <p>manager: { manager }</p>
                 <Routes fallback=Home>
                     <Route path=path!("/") view=Home/>
                     <Route
@@ -76,7 +119,6 @@ pub fn App() -> impl IntoView {
 
 
     }
-
 }
 
 #[component]
@@ -113,8 +155,6 @@ pub fn AppConfigLoaded(
         </Transition>
     }
 }
-
-
 
 #[component]
 pub fn AuthErrorPage() -> impl IntoView {
