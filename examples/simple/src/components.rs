@@ -1,9 +1,6 @@
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, Link, Stylesheet, Title};
-use leptos_oidc::{
-    Auth, AuthError, AuthErrorContext, AuthLoaded, AuthLoading, AuthParameters, Authenticated,
-    Challenge, LoginLink, LogoutLink,
-};
+use leptos_oidc::{Auth, AuthError, AuthErrorContext, AuthLoaded, AuthLoading, AuthParameters, AuthStore, Authenticated, Challenge, LoginLink, LogoutLink};
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 
@@ -19,7 +16,10 @@ pub fn App() -> impl IntoView {
         scope: Some("openid%20profile%20email".to_string()),
         audience: None,
     };
-    let auth_resource = Auth::init(parameters, );
+    let auth_store: RwSignal<AuthStore> = RwSignal::new(AuthStore::default());
+    provide_context(auth_store);
+
+    let auth_resource = Auth::init(parameters);
     provide_context(auth_resource);
 
     view! {
@@ -28,8 +28,8 @@ pub fn App() -> impl IntoView {
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
 
         <Router>
-            <AuthLoading><p>Authentication is loading</p></AuthLoading>
-            <AuthErrorContext><AuthErrorPage></AuthErrorPage></AuthErrorContext>
+            //<AuthLoading><p>Authentication is loading</p></AuthLoading>
+            //<AuthErrorContext><AuthErrorPage></AuthErrorPage></AuthErrorContext>
 
             <h1>Leptos OIDC</h1>
                 <Routes fallback=Home>

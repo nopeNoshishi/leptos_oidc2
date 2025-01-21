@@ -57,7 +57,7 @@ pub fn AuthLoaded(
     children: ChildrenFn,
     #[prop(optional, into)] fallback: ViewFnOnce,
 ) -> impl IntoView {
-    let auth_resource = use_context::<LocalResource<Result<Auth, AuthError>>>()
+    let auth_resource = use_context::<LocalResource<Result<AuthStore, AuthError>>>()
         .expect("AuthLoaded: Local resource of auth does not exist");
     let children = StoredValue::new(children);
 
@@ -65,12 +65,12 @@ pub fn AuthLoaded(
         <Suspense fallback>
             { move || {
                 Suspend::new(async move {
-                    let auth_store = use_context::<RwSignal<AuthStore>>().expect("AuthStore not present in AuthLoaded");
+                    //let auth_store = use_context::<RwSignal<AuthStore>>().expect("AuthStore not present in AuthLoaded");
                     match auth_resource.await {
                         Ok(auth) => {
-                            tracing::info!("AuthLoaded: Authenticated!");
+                            tracing::info!("AuthLoaded! {auth:?}");
                             // provide auth state object to context
-                            auth_store.set(AuthStore::Authenticated(auth));
+                            //auth_store.set(AuthStore::Authenticated(auth));
                             Either::Right(view! {
                                 { children.read_value()() }
                             })
@@ -78,7 +78,7 @@ pub fn AuthLoaded(
                         Err(error) => {
                             tracing::error!("AuthLoaded: Error loading authentication {}", error);
                             // provide error object to context
-                            auth_store.set(AuthStore::Error(error));
+                            //auth_store.set(AuthStore::Error(error));
                             Either::Left(())
                         }
                     }
@@ -97,8 +97,10 @@ pub fn LoginLink(
     children: Children,
     #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
-    let auth = use_context::<RwSignal<AuthStore>>().expect("AuthStore not present in LoginLink");
-    let login_url = move || auth.get().get_token().expect("LoginLink should be wrapped in authenticated component!").login_url();
+    let auth_store = use_context::<RwSignal<AuthStore>>().expect("AuthStore not present in LoginLink");
+    let login_url = move || auth_store.with(|auth_store|
+        auth_store.get_unauthenticated().map(|unauth| unauth.login_url())
+    );
 
     view! {
         <a href=login_url class=class>
@@ -116,7 +118,7 @@ pub fn LogoutLink(
     #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
     let auth = use_context::<RwSignal<AuthStore>>().expect("AuthStore not present in LogoutLink");
-    let logout_url = move || auth.get().get_token().expect("LoginLink should be wrapped in authenticated component!").logout_url();
+    let logout_url = move || auth.get().get_authenticated().expect("LogoutLink should be wrapped in authenticated component!").logout_url();
 
     view! {
         <a href=logout_url class=class>
@@ -128,7 +130,7 @@ pub fn LogoutLink(
 #[must_use]
 #[component(transparent)]
 pub fn AuthLoading(children: ChildrenFn) -> impl IntoView {
-    let auth_resource = use_context::<LocalResource<Result<Auth, AuthError>>>()
+    let auth_resource = use_context::<LocalResource<Result<AuthStore, AuthError>>>()
         .expect("AuthLoading: Local resource of auth does not exist");
 
     view! {

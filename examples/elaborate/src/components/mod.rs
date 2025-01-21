@@ -289,10 +289,27 @@ pub fn Unauthenticated() -> impl IntoView {
 #[component]
 pub fn Profile() -> impl IntoView {
     let auth = use_context::<RwSignal<AuthStore>>().expect("Profile: Auth store signal should exist");
-    let token = auth.get().get_token().map(|token| token.decoded_access_token::<Claims>(Algorithm::RS256, &["account"])).flatten();
+    //let token = auth.get().get_token()
+    //    .map(|token| token.decoded_access_token::<Claims>(Algorithm::RS256, &["account"])).flatten();
+    let token = auth.with(|auth| {
+        auth.get_token()
+            .map(|auth| auth.decoded_access_token::<Claims>(Algorithm::RS256, &["account"]))
+            .flatten()
+    });
+    let user = auth.with(|auth| {
+        auth.get_token()
+            .map(|auth| {
+                auth.decoded_access_token::<Claims>(Algorithm::RS256, &["account"])
+                    .map(|token| token.claims.preferred_username)
+            })
+            .flatten()
+    });
+
+
     view! {
         <Title text="Profile"/>
         <h1>Profile</h1>
+        <p>User: { user }</p>
 
         //<LogoutLink class="text-logout">Sign out</LogoutLink>
         // Your Profile Page

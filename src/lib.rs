@@ -110,17 +110,41 @@ pub struct Auth {
     token_store: RwSignal<TokenStorageResult>,
 }
 
+#[derive(Clone, Debug)]
+pub struct Authenticated {
+    parameters: AuthParameters,
+    issuer: IssuerMetadata,
+    token_store: TokenStorage,
+}
+
+
+#[derive(Clone, Debug)]
+pub struct Unauthenticated {
+    parameters: AuthParameters,
+    issuer: IssuerMetadata,
+}
+
 #[derive(Clone, Debug, Default)]
 pub enum AuthStore {
     #[default]
     Loading,
-    Unauthenticated,
-    Authenticated(Auth),
+    Unauthenticated(Unauthenticated),
+    Authenticated(Authenticated),
     Error(AuthError),
 }
 
 impl AuthStore {
-    pub fn get_token(&self) -> Option<Auth> {
+    pub fn get_unauthenticated(&self) -> Option<Unauthenticated> {
+        match self {
+            AuthStore::Unauthenticated(auth) => {
+                Some(auth.clone())
+            }
+            _ => {
+                None
+            }
+        }
+    }
+    pub fn get_authenticated(&self) -> Option<Authenticated> {
         match self {
             AuthStore::Authenticated(auth) => {
                 Some(auth.clone())
@@ -144,7 +168,7 @@ impl AuthStore {
     pub fn is_authenticated(&self) -> bool {
         match self {
             AuthStore::Authenticated(auth) => {
-                auth.authenticated()
+                auth.token_store.is_valid()
             },
             _ => {
                 false
@@ -153,91 +177,13 @@ impl AuthStore {
     }
 }
 
-
-trait DecodeTokenStorage {
-    fn decode_token_storage(&self) -> Option<TokenStorage>;
-}
-
-impl DecodeTokenStorage for RwSignal<TokenStorageResult> {
-    fn decode_token_storage(&self) -> Option<TokenStorage> {
-        self.get().ok().flatten()
-    }
-}
-
-impl Auth {
-    /// Initializes a new `Auth` instance with the provided authentication
-    /// parameters. This function creates and returns an `Auth` struct
-    /// configured for authentication.
-    #[must_use]
-    pub fn init(parameters: AuthParameters) -> LocalResource<Result<Self, AuthError>> {
-        //let auth_store = expect_context::<RwSignal<AuthStore>>();
-        //auth_store.set(AuthStore::Loading);
-
-        LocalResource::new(move || {
-            let auth_store = expect_context::<RwSignal<AuthStore>>();
-            let parameters = parameters.clone();
-            async move {
-                let issuer = init_issuer_resource(&parameters).await?;
-                let init_auth = init_auth_resource(&parameters, &issuer.configuration).await;
-                let token_store = RwSignal::new(init_auth.clone());
-                tracing::info!("Loading auth resource.");
-                create_handle_refresh_effect(
-                    parameters.clone(),
-                    issuer.configuration.clone(),
-                    token_store,
-                );
-                let auth = Self {
-                    parameters,
-                    issuer,
-                    token_store,
-                };
-                // let auth_clone = auth.clone();
-                // spawn_local(async move || {
-                //
-                //     let token_store = token_store.get();
-                //     match token_store {
-                //         Ok(result) => {
-                //             match result {
-                //                 None => {
-                //                     auth_store.set(AuthStore::Unauthenticated)
-                //                 }
-                //                 Some(result) => {
-                //                     auth_store.set(AuthStore::Authenticated(auth_clone.clone()))
-                //                 }
-                //             }
-                //         }
-                //         Err(error) => {
-                //             auth_store.set(AuthStore::Error(error.clone()));
-                //         }
-                //     }
-                // });
-                // token_store.with(|token_store| {
-                //     match token_store {
-                //         Ok(result) => {
-                //             match result {
-                //                 None => {
-                //                     auth_store.set(AuthStore::Unauthenticated)
-                //                 }
-                //                 Some(result) => {
-                //                     auth_store.set(AuthStore::Authenticated(auth.clone()))
-                //                 }
-                //             }
-                //         }
-                //         Err(error) => {
-                //             auth_store.set(AuthStore::Error(error.clone()));
-                //         }
-                //     }
-                // });
-                Ok(auth)
-            }
-        })
-    }
+impl Unauthenticated {
 
     /// Generates and returns the URL for initiating the authentication process.
     /// This URL is used to redirect the user to the authentication provider's
     /// login page.
     #[must_use]
-    pub fn login_url(&self) -> Option<String> {
+    pub fn login_url(&self) -> String {
         let mut params = self
             .issuer
             .configuration
@@ -289,9 +235,11 @@ impl Auth {
             }
         }
 
-        Some(params)
+        params
     }
+}
 
+impl Authenticated {
     /// Generates and returns the URL for initiating the logout process. This
     /// URL is used to redirect the user to the authentication provider's logout
     /// page.
@@ -308,13 +256,49 @@ impl Auth {
                     .post_logout_redirect_uri
                     .clone()
                     .push_param_query("destroy_session", "true"),
-            );
-
-        if let Ok(Some(token)) = &self.token_store.get() {
-            return Some(url.push_param_query("id_token_hint", &token.id_token));
-        }
+            )
+            .push_param_query("id_token_hint", &self.token_store.id_token);
 
         Some(url)
+    }
+
+}
+
+trait DecodeTokenStorage {
+    fn decode_token_storage(&self) -> Option<TokenStorage>;
+}
+
+impl DecodeTokenStorage for RwSignal<TokenStorageResult> {
+    fn decode_token_storage(&self) -> Option<TokenStorage> {
+        self.get().ok().flatten()
+    }
+}
+
+impl Auth {
+    /// Initializes a new `Auth` instance with the provided authentication
+    /// parameters. This function creates and returns an `Auth` struct
+    /// configured for authentication.
+    #[must_use]
+    pub fn init(parameters: AuthParameters) -> LocalResource<Result<AuthStore, AuthError>> {
+        //let auth_store = expect_context::<RwSignal<AuthStore>>();
+        //auth_store.set(AuthStore::Loading);
+
+        LocalResource::new(move || {
+            let auth_store_signal = expect_context::<RwSignal<AuthStore>>();
+            let parameters = parameters.clone();
+            async move {
+                let issuer = init_issuer_resource(&parameters).await?;
+                let auth_store = init_auth_resource(&parameters, issuer).await?;
+                auth_store_signal.set(auth_store.clone());
+                tracing::info!("Loading auth resource.");
+                // create_handle_refresh_effect(
+                //     parameters.clone(),
+                //     issuer.configuration.clone(),
+                //     token_store,
+                // );
+                Ok(auth_store)
+            }
+        })
     }
 
     /// Checks if the user is authenticated.
@@ -428,9 +412,9 @@ async fn init_issuer_resource(parameters: &AuthParameters) -> Result<IssuerMetad
 /// Initialize the auth resource, which will handle the entire state of the authentication.
 async fn init_auth_resource(
     parameters: &AuthParameters,
-    configuration: &Configuration,
-) -> TokenStorageResult {
-    let (local_storage, set_local_storage, remove_local_storage) =
+    issuer: IssuerMetadata,
+) -> Result<AuthStore, AuthError> {
+    let (local_storage, set_local_storage, _remove_local_storage) =
         use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY);
 
     let auth_response = use_query::<CallbackResponse>();
@@ -448,15 +432,23 @@ async fn init_auth_resource(
 
             if let Some(token_storage) = local_storage.get_untracked() {
                 if token_storage.is_valid() {
-                    return Ok(Some(token_storage));
+                    return Ok(AuthStore::Authenticated(Authenticated {
+                        parameters: parameters.clone(),
+                        issuer,
+                        token_store: token_storage
+                    }));
                 }
             }
 
-            let token_storage = fetch_token(parameters, configuration, response).await?;
+            let token_storage = fetch_token(parameters, &issuer.configuration, response).await?;
 
             set_local_storage.set(Some(token_storage.clone()));
 
-            Ok(Some(token_storage))
+            Ok(AuthStore::Authenticated(Authenticated {
+                parameters: parameters.clone(),
+                issuer,
+                token_store: token_storage
+            }))
         }
         Ok(CallbackResponse::SuccessLogout(response)) => {
             tracing::debug!("Logout redirect");
@@ -476,20 +468,33 @@ async fn init_auth_resource(
                 // remove_local_storage(); // does not seem to delete local storage
             }
 
-            Ok(None)
+            Ok(AuthStore::Unauthenticated(Unauthenticated {
+                parameters: parameters.clone(),
+                issuer,
+            }))
         }
-        Ok(CallbackResponse::Error(error)) => Err(AuthError::Provider(error)),
+        Ok(CallbackResponse::Error(error)) => Ok(AuthStore::Error(AuthError::Provider(error))),
         Err(_no_query_parameters) => {
-            if let Some(token_storage) = local_storage.get_untracked() {
-                if token_storage.is_valid() {
-                    Ok(Some(token_storage))
+            if let Some(token_store) = local_storage.get_untracked() {
+                if token_store.is_valid() {
+                    Ok(AuthStore::Authenticated(Authenticated {
+                        parameters: parameters.clone(),
+                        issuer,
+                        token_store,
+                    }))
                 } else {
                     set_local_storage.set(None);
                     // remove_local_storage(); // does not seem to delete local storage
-                    Ok(None)
+                    Ok(AuthStore::Unauthenticated(Unauthenticated {
+                        parameters: parameters.clone(),
+                        issuer,
+                    }))
                 }
             } else {
-                Ok(None)
+                Ok(AuthStore::Unauthenticated(Unauthenticated {
+                    parameters: parameters.clone(),
+                    issuer,
+                }))
             }
         }
     }
