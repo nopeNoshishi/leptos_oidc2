@@ -19,7 +19,7 @@ pub fn App() -> impl IntoView {
         scope: Some("openid%20profile%20email".to_string()),
         audience: None,
     };
-    let auth_resource = Auth::init(parameters);
+    let auth_resource = Auth::init(parameters, );
     provide_context(auth_resource);
 
     view! {
@@ -59,7 +59,7 @@ pub fn App() -> impl IntoView {
 
 #[component]
 pub fn AuthErrorPage() -> impl IntoView {
-    let auth_error = expect_context::<AuthError>();
+    let auth_error = use_context::<AuthError>().expect("AuthErrorPage: auth error should exist in context!");
     let error_message = format!("{auth_error:?}");
     view! {
         <h1>Error occurred</h1>

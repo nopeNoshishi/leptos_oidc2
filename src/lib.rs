@@ -110,6 +110,50 @@ pub struct Auth {
     token_store: RwSignal<TokenStorageResult>,
 }
 
+#[derive(Clone, Debug, Default)]
+pub enum AuthStore {
+    #[default]
+    Loading,
+    Unauthenticated,
+    Authenticated(Auth),
+    Error(AuthError),
+}
+
+impl AuthStore {
+    pub fn get_token(&self) -> Option<Auth> {
+        match self {
+            AuthStore::Authenticated(auth) => {
+                Some(auth.clone())
+            }
+            _ => {
+                None
+            }
+        }
+    }
+    pub fn get_error(&self) -> Option<AuthError> {
+        match self {
+            AuthStore::Error(auth) => {
+                Some(auth.clone())
+            }
+            _ => {
+                None
+            }
+        }
+    }
+
+    pub fn is_authenticated(&self) -> bool {
+        match self {
+            AuthStore::Authenticated(auth) => {
+                auth.authenticated()
+            },
+            _ => {
+                false
+            }
+        }
+    }
+}
+
+
 trait DecodeTokenStorage {
     fn decode_token_storage(&self) -> Option<TokenStorage>;
 }
@@ -126,23 +170,65 @@ impl Auth {
     /// configured for authentication.
     #[must_use]
     pub fn init(parameters: AuthParameters) -> LocalResource<Result<Self, AuthError>> {
+        //let auth_store = expect_context::<RwSignal<AuthStore>>();
+        //auth_store.set(AuthStore::Loading);
+
         LocalResource::new(move || {
+            let auth_store = expect_context::<RwSignal<AuthStore>>();
             let parameters = parameters.clone();
             async move {
                 let issuer = init_issuer_resource(&parameters).await?;
-                let token_store =
-                    RwSignal::new(init_auth_resource(&parameters, &issuer.configuration).await);
-
+                let init_auth = init_auth_resource(&parameters, &issuer.configuration).await;
+                let token_store = RwSignal::new(init_auth.clone());
+                tracing::info!("Loading auth resource.");
                 create_handle_refresh_effect(
                     parameters.clone(),
                     issuer.configuration.clone(),
                     token_store,
                 );
-                Ok(Self {
+                let auth = Self {
                     parameters,
                     issuer,
                     token_store,
-                })
+                };
+                // let auth_clone = auth.clone();
+                // spawn_local(async move || {
+                //
+                //     let token_store = token_store.get();
+                //     match token_store {
+                //         Ok(result) => {
+                //             match result {
+                //                 None => {
+                //                     auth_store.set(AuthStore::Unauthenticated)
+                //                 }
+                //                 Some(result) => {
+                //                     auth_store.set(AuthStore::Authenticated(auth_clone.clone()))
+                //                 }
+                //             }
+                //         }
+                //         Err(error) => {
+                //             auth_store.set(AuthStore::Error(error.clone()));
+                //         }
+                //     }
+                // });
+                // token_store.with(|token_store| {
+                //     match token_store {
+                //         Ok(result) => {
+                //             match result {
+                //                 None => {
+                //                     auth_store.set(AuthStore::Unauthenticated)
+                //                 }
+                //                 Some(result) => {
+                //                     auth_store.set(AuthStore::Authenticated(auth.clone()))
+                //                 }
+                //             }
+                //         }
+                //         Err(error) => {
+                //             auth_store.set(AuthStore::Error(error.clone()));
+                //         }
+                //     }
+                // });
+                Ok(auth)
             }
         })
     }
@@ -344,7 +430,7 @@ async fn init_auth_resource(
     parameters: &AuthParameters,
     configuration: &Configuration,
 ) -> TokenStorageResult {
-    let (local_storage, set_local_storage, _remove_local_storage) =
+    let (local_storage, set_local_storage, remove_local_storage) =
         use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY);
 
     let auth_response = use_query::<CallbackResponse>();
@@ -387,7 +473,7 @@ async fn init_auth_resource(
             if response.destroy_session {
                 tracing::debug!("Logout: destroying session");
                 set_local_storage.set(None);
-                //remove_local_storage(); // does not seem to delete local storage
+                // remove_local_storage(); // does not seem to delete local storage
             }
 
             Ok(None)
@@ -399,7 +485,7 @@ async fn init_auth_resource(
                     Ok(Some(token_storage))
                 } else {
                     set_local_storage.set(None);
-                    // remove_local_storage(); TODO: remove
+                    // remove_local_storage(); // does not seem to delete local storage
                     Ok(None)
                 }
             } else {

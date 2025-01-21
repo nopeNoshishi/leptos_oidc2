@@ -97,7 +97,7 @@ use leptos_oidc::Auth;
 
 #[component]
 fn MyComponent() {
-    let auth = expect_context::<Auth>();
+    let auth = expect_context::<Auth>();  // TODO: clarify readme examples
 
     // Generate the login URL to initiate the authentication process.
     let login_url = move || auth.login_url();

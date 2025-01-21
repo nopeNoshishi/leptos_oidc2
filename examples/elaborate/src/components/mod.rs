@@ -1,14 +1,12 @@
-use crate::user::Claims;
+use crate::user::{Claims, User, UserExtensions, UserStoreFields};
 use leptos::either::Either;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, Link, Stylesheet, Title};
-use leptos_oidc::{
-    Algorithm, Auth, AuthError, AuthLoaded, AuthParameters, Authenticated, LoginLink, LogoutLink,
-};
-use leptos_router::components::{Route, Router, Routes};
+use leptos_oidc::{Algorithm, Auth, AuthError, AuthErrorContext, AuthLoaded, AuthParameters, AuthStore, Authenticated, LoginLink, LogoutLink};
+use leptos_router::components::{ProtectedRoute, Route, Router, Routes};
 use leptos_router::path;
+use reactive_stores::Store;
 use serde::Deserialize;
-use std::ops::Deref;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -35,16 +33,13 @@ pub struct AppGlobals {
     auth_resource: LocalResource<Result<Auth, AuthError>>,
 }
 
-impl Deref for AppGlobals {
-    type Target = LocalResource<Result<Auth, AuthError>>;
-    fn deref(&self) -> &Self::Target {
-        &self.auth_resource
-    }
-}
 
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    let auth_store: RwSignal<AuthStore> = RwSignal::new(AuthStore::default());
+    provide_context(auth_store);
+
     let app_globals: LocalResource<Result<AppGlobals, AppConfigError>> =
         LocalResource::new(move || async {
             let app_config = gloo_net::http::Request::get("/config.json")
@@ -61,13 +56,14 @@ pub fn App() -> impl IntoView {
             })
         });
     provide_context(app_globals);
-    let (claims, set_claims) = signal::<Option<Claims>>(None);
+    let user = Store::new(User::default());
+    provide_context(user);
 
     Effect::new(move || match app_globals.get() {
         None => {}
         Some(globals) => {
             if let Ok(globals) = &*globals {
-                let auth_resource = globals.get();
+                let auth_resource = globals.auth_resource.get();
                 match auth_resource {
                     None => {}
                     Some(auth) => {
@@ -75,7 +71,7 @@ pub fn App() -> impl IntoView {
                             let token =
                                 auth.decoded_access_token::<Claims>(Algorithm::RS256, &["account"]);
                             let claims = token.map(|token| token.claims);
-                            set_claims.set(claims);
+                            user.claims().set(claims);
                         }
                     }
                 }
@@ -83,33 +79,39 @@ pub fn App() -> impl IntoView {
         }
     });
 
-    let claims_string = move || claims.get().map(|claim| format!("{claim:?}"));
-    let testgroup =
-        move || claims.with(|claim| claim.clone().map(|claim| claim.has_group("testgroup")));
-    let manager =
-        move || claims.with(|claim| claim.clone().map(|claim| claim.has_role("managerrole")));
+    let manager = move || user.has_role("managerrole");
 
     view! {
         <Stylesheet id="leptos" href="/pkg/main.css"/>
 
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
 
-
         <Router>
             <h1>Leptos OIDC</h1>
-                <p>Claims: { claims_string }</p>
-                <p>Test group: { testgroup }</p>
-                <p>manager: { manager }</p>
+                <Navigation/>
+                <DebugInfo/>
                 <Routes fallback=Home>
                     <Route path=path!("/") view=Home/>
+                    <ProtectedRoute
+                        path=path!("/manager")
+                        view=Manager
+                        condition=manager
+                        redirect_path=|| "/"
+                    />
                     <Route
                         path=path!("/profile")
                         view=|| {
                             view! {
                                 <AppConfigLoaded>
-                                    <Authenticated unauthenticated=Unauthenticated>
-                                        <Profile/>
-                                    </Authenticated>
+                                    <p>Profile</p>
+                                    <Profile/>
+
+                                    //<AuthLoaded>
+                                    //     <Authenticated unauthenticated=Unauthenticated>
+                                    //         <p>Profile</p>
+                                    //         <Profile/>
+                                    //     </Authenticated>
+                                    //</AuthLoaded>
                                 </AppConfigLoaded>
                             }
                         }
@@ -126,7 +128,7 @@ pub fn AppConfigLoaded(
     children: ChildrenFn,
     #[prop(optional, into)] fallback: ViewFnOnce,
 ) -> impl IntoView {
-    let app_globals = expect_context::<LocalResource<Result<AppGlobals, AppConfigError>>>();
+    let app_globals = use_context::<LocalResource<Result<AppGlobals, AppConfigError>>>().expect("AppConfigLoaded component: App globals resource should exist!");
     let children = StoredValue::new(children);
 
     view! {
@@ -140,9 +142,9 @@ pub fn AppConfigLoaded(
                         provide_context(auth_resource);
                         // provides authentication data in leptos context required by login/logout button
                         Either::Right(view! {
-                            <AuthLoaded fallback=Loading>
+                            //<AuthLoaded fallback=Loading>
                                 { children.read_value()() }
-                            </AuthLoaded>
+                            //</AuthLoaded>
                         })
                     } else {
                         Either::Left(view! {
@@ -157,13 +159,94 @@ pub fn AppConfigLoaded(
 }
 
 #[component]
+pub fn Manager() -> impl IntoView {
+    view! {
+        <Title text="Management"/>
+        <h1>Management</h1>
+        <p>Your Management Page</p>
+        <a href="/profile">Profile page</a>
+
+    }
+}
+
+
+#[component]
 pub fn AuthErrorPage() -> impl IntoView {
-    let auth_error = expect_context::<AuthError>();
-    let error_message = format!("{auth_error:?}");
+    let auth_store = use_context::<RwSignal<AuthStore>>().expect("AuthStore not initialized in error page");
+    let error_message = move || auth_store.get().get_error().map(|err| format!("{err:?}"));
     view! {
         <h1>Error occurred</h1>
         <p>There was an error in the authentication process!</p>
         { error_message }
+    }
+}
+
+#[component]
+pub fn Navigation() -> impl IntoView {
+    let user = use_context::<Store<User>>().expect("Navigation: user store should exist!");
+
+    view! {
+        <h2>Navigation</h2>
+        <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/profile">Profile</a></li>
+            <Show when=move || user.has_role("managerrole").unwrap_or(false)>
+                <li><a href="/manager">Management</a></li>
+            </Show>
+        </ul>
+        <AppConfigLoaded fallback=|| view! { <p>Loading ..</p> }>
+            Login/Logout:
+            <AuthLoaded>
+                <Authenticated unauthenticated=move || view! { <LoginLink class="text-login">Sign in</LoginLink> }>
+                    <LogoutLink class="text-logout">Sign out</LogoutLink>
+                </Authenticated>
+            </AuthLoaded>
+        </AppConfigLoaded>
+
+    }
+}
+
+#[component]
+pub fn DebugInfo() -> impl IntoView {
+    let user = use_context::<Store<User>>().expect("DebugInfo: user store should exist!");
+    let name = move || user.name();
+    let email = move || user.email();
+    let tester = move || user.has_group("testgroup");
+    let manager = move || user.has_group("managergroup");
+    let groups = move || user.groups().map(|groups| groups.into_iter().collect::<Vec<_>>().join(", "));
+    let roles = move || user.claims().with(|claims| claims.clone().map(|claims| claims.roles.join(", ")));
+
+    view! {
+        <h1>Debug</h1>
+        <table>
+            <tr>
+                <td><b>User name</b></td>
+                <td>{ name }</td>
+            </tr>
+            <tr>
+                <td><b>EMail</b></td>
+                <td>{ email }</td>
+            </tr>
+            <tr>
+                <td><b>Testuser</b></td>
+                <td>{ tester }</td>
+            </tr>
+            <tr>
+                <td><b>Manager</b></td>
+                <td>{ manager }</td>
+            </tr>
+            <tr>
+                <td><b>Groups</b></td>
+                <td>{ groups }</td>
+            </tr>
+            <tr>
+                <td><b>Roles</b></td>
+                <td>{ roles }</td>
+            </tr>
+        </table>
+        <AuthErrorContext fallback=|| view! { <p>no error context present</p>}>
+            <AuthErrorPage></AuthErrorPage>
+        </AuthErrorContext>
     }
 }
 
@@ -205,13 +288,13 @@ pub fn Unauthenticated() -> impl IntoView {
 /// This will be rendered, if the user is authentication
 #[component]
 pub fn Profile() -> impl IntoView {
-    let auth = expect_context::<Auth>();
-    let token = auth.decoded_access_token::<Claims>(Algorithm::RS256, &["account"]);
+    let auth = use_context::<RwSignal<AuthStore>>().expect("Profile: Auth store signal should exist");
+    let token = auth.get().get_token().map(|token| token.decoded_access_token::<Claims>(Algorithm::RS256, &["account"])).flatten();
     view! {
         <Title text="Profile"/>
         <h1>Profile</h1>
-        <div><a href="/">Home</a></div>
-        <LogoutLink class="text-logout">Sign out</LogoutLink>
+
+        //<LogoutLink class="text-logout">Sign out</LogoutLink>
         // Your Profile Page
         {
             match token {
