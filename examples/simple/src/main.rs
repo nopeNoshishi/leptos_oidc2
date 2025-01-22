@@ -1,8 +1,8 @@
-use components::App;
 use leptos::prelude::*;
+use simple::App;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-mod components;
+mod simple;
 
 fn main() {
     console_error_panic_hook::set_once();

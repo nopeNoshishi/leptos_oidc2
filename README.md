@@ -77,13 +77,13 @@ to specify the OIDC endpoints, client ID, redirect URIs, and other relevant
 information.
 
 Please keep in mind that the `issuer` url needs to be the base url without the `/.well-known/openid-configuration` and without a trailing slash.
-A simple example may be found [here](examples/simple/src/components.rs).
+A simple example may be found [here](examples/simple/src/simple).
 
 Note: Please keep in mind that the `Auth::init` needs to be `inside a Router`.
 The internal state is using `use_query`, which is only available inside a
 `Router`. 
 Furthermore, the initializing of the authentication context needs to be awaited. 
-See the usage of `AuthInitialized` component in the [example](examples/simple/src/components.rs). 
+See the usage of `AuthInitialized` component in the [example](examples/simple/src/simple). 
 
 ### Generating Login and Logout URLs
 

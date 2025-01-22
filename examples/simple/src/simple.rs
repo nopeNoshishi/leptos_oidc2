@@ -19,8 +19,7 @@ pub fn App() -> impl IntoView {
     let auth_store: RwSignal<AuthStore> = RwSignal::new(AuthStore::default());
     provide_context(auth_store);
 
-    let auth_resource = Auth::init(parameters);
-    provide_context(auth_resource);
+    let _ = Auth::init(parameters);
 
     view! {
         <Stylesheet id="leptos" href="/pkg/main.css"/>
@@ -28,8 +27,8 @@ pub fn App() -> impl IntoView {
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
 
         <Router>
-            //<AuthLoading><p>Authentication is loading</p></AuthLoading>
-            //<AuthErrorContext><AuthErrorPage></AuthErrorPage></AuthErrorContext>
+            <AuthLoading><p>Authentication is loading</p></AuthLoading>
+            <AuthErrorContext><AuthErrorPage></AuthErrorPage></AuthErrorContext>
 
             <h1>Leptos OIDC</h1>
                 <Routes fallback=Home>
@@ -43,6 +42,7 @@ pub fn App() -> impl IntoView {
                         path=path!("/profile")
                         view=|| {
                             view! {
+                                <p>Profile page</p>
                                 <AuthLoaded fallback=Loading>
                                     <Authenticated unauthenticated=Unauthenticated>
                                         <Profile/>
@@ -58,9 +58,32 @@ pub fn App() -> impl IntoView {
 }
 
 #[component]
+pub fn ReloadAuthButton() -> impl IntoView {
+    let auth_resource = use_context::<LocalResource<Result<AuthStore, AuthError>>>()
+        .expect("Local resource of Result<AuthStore, AuthError> not found!");
+
+    view! {
+        <button
+            on:click=move |_| {
+                auth_resource.refetch();
+            }
+        >
+            Reload
+        </button>
+    }
+}
+
+#[component]
 pub fn AuthErrorPage() -> impl IntoView {
-    let auth_error = use_context::<AuthError>().expect("AuthErrorPage: auth error should exist in context!");
-    let error_message = format!("{auth_error:?}");
+    let auth_store = use_context::<RwSignal<AuthStore>>()
+        .expect("AuthErrorContext: RwSignal<AuthStore> not present");
+    let error_message = move || {
+        auth_store
+            .get()
+            .get_error()
+            .map(|error| format!("{error:?}"))
+    };
+
     view! {
         <h1>Error occurred</h1>
         <p>There was an error in the authentication process!</p>

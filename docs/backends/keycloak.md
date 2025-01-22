@@ -28,6 +28,6 @@ And of course, don't forget to save at the end. \
 
 All you need to do is to set up everything with the init function. In this
 example the config would look like this:
-[auth](../../examples/simple/src/components.rs)
+[auth](../../examples/simple/src/simple)
 
 Please keep in mind to set your realm correctly, otherwise it won't work.

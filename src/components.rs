@@ -23,7 +23,7 @@
 */
 #![allow(clippy::must_use_candidate)]
 
-use crate::{Auth, AuthError, AuthStore};
+use crate::{AuthError, AuthStore};
 use leptos::either::Either;
 use leptos::prelude::*;
 
@@ -36,15 +36,16 @@ pub fn Authenticated(
     children: ChildrenFn,
     #[prop(optional, into)] unauthenticated: ViewFn,
 ) -> impl IntoView {
-    let auth_store = use_context::<RwSignal<AuthStore>>().expect("AuthStore not initialized in Authenticated component");
+    let auth_store = use_context::<RwSignal<AuthStore>>()
+        .expect("AuthStore not initialized in Authenticated component");
     let unauthenticated = move || unauthenticated.run();
     let authenticated = move || auth_store.get().is_authenticated();
     let children = StoredValue::new(children);
 
     view! {
         <Show
-            when=authenticated.clone()
-            fallback=unauthenticated.clone()
+            when=authenticated
+            fallback=unauthenticated
         >
             { children.read_value()() }
         </Show>
@@ -68,7 +69,7 @@ pub fn AuthLoaded(
                     //let auth_store = use_context::<RwSignal<AuthStore>>().expect("AuthStore not present in AuthLoaded");
                     match auth_resource.await {
                         Ok(auth) => {
-                            tracing::info!("AuthLoaded! {auth:?}");
+                            tracing::debug!("AuthLoaded! {auth:?}");
                             // provide auth state object to context
                             //auth_store.set(AuthStore::Authenticated(auth));
                             Either::Right(view! {
@@ -97,10 +98,15 @@ pub fn LoginLink(
     children: Children,
     #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
-    let auth_store = use_context::<RwSignal<AuthStore>>().expect("AuthStore not present in LoginLink");
-    let login_url = move || auth_store.with(|auth_store|
-        auth_store.get_unauthenticated().map(|unauth| unauth.login_url())
-    );
+    let auth_store =
+        use_context::<RwSignal<AuthStore>>().expect("AuthStore not present in LoginLink");
+    let login_url = move || {
+        auth_store.with(|auth_store| {
+            auth_store
+                .get_unauthenticated()
+                .map(|unauth| unauth.login_url())
+        })
+    };
 
     view! {
         <a href=login_url class=class>
@@ -118,7 +124,12 @@ pub fn LogoutLink(
     #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
     let auth = use_context::<RwSignal<AuthStore>>().expect("AuthStore not present in LogoutLink");
-    let logout_url = move || auth.get().get_authenticated().expect("LogoutLink should be wrapped in authenticated component!").logout_url();
+    let logout_url = move || {
+        auth.get()
+            .get_authenticated()
+            .expect("LogoutLink should be wrapped in authenticated component!")
+            .logout_url()
+    };
 
     view! {
         <a href=logout_url class=class>
@@ -152,8 +163,7 @@ pub fn AuthErrorContext(
 ) -> impl IntoView {
     let auth_store = use_context::<RwSignal<AuthStore>>()
         .expect("AuthErrorContext: RwSignal<AuthStore> not present");
-    let error = move || auth_store.get().get_error();
-    let is_error = move || auth_store.get().get_error().is_some();
+    let is_error = move || auth_store.with(|store| store.get_error().is_some());
 
     view! {
         <Show when=is_error fallback=fallback >

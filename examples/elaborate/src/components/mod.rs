@@ -2,12 +2,13 @@ use crate::user::{Claims, User, UserExtensions, UserStoreFields};
 use leptos::either::Either;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, Link, Stylesheet, Title};
-use leptos_oidc::{Algorithm, Auth, AuthError, AuthErrorContext, AuthLoaded, AuthParameters, AuthStore, Authenticated, LoginLink, LogoutLink};
+use leptos_oidc::{Algorithm, Auth, AuthError, AuthErrorContext, AuthLoaded, AuthParameters, AuthStore, LoginLink, LogoutLink};
 use leptos_router::components::{ProtectedRoute, Route, Router, Routes};
 use leptos_router::path;
 use reactive_stores::Store;
 use serde::Deserialize;
 use std::sync::Arc;
+use leptos_oidc::AuthenticatedData;
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum AppConfigError {
@@ -128,7 +129,8 @@ pub fn AppConfigLoaded(
     children: ChildrenFn,
     #[prop(optional, into)] fallback: ViewFnOnce,
 ) -> impl IntoView {
-    let app_globals = use_context::<LocalResource<Result<AppGlobals, AppConfigError>>>().expect("AppConfigLoaded component: App globals resource should exist!");
+    let app_globals = use_context::<LocalResource<Result<AppGlobals, AppConfigError>>>()
+        .expect("AppConfigLoaded component: App globals resource should exist!");
     let children = StoredValue::new(children);
 
     view! {
