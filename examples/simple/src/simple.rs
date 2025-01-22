@@ -57,21 +57,6 @@ pub fn App() -> impl IntoView {
     }
 }
 
-#[component]
-pub fn ReloadAuthButton() -> impl IntoView {
-    let auth_resource = use_context::<LocalResource<Result<Auth, AuthError>>>()
-        .expect("Local resource of Result<AuthStore, AuthError> not found!");
-
-    view! {
-        <button
-            on:click=move |_| {
-                auth_resource.refetch();
-            }
-        >
-            Reload
-        </button>
-    }
-}
 
 #[component]
 pub fn AuthErrorPage() -> impl IntoView {

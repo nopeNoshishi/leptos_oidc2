@@ -2,7 +2,10 @@ use crate::user::Claims;
 use leptos::either::Either;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, Link, Stylesheet, Title};
-use leptos_oidc::{Algorithm, Auth, AuthError, AuthErrorContext, AuthLoaded, AuthParameters, Authenticated, LoginLink, LogoutLink, TokenData};
+use leptos_oidc::{
+    Algorithm, Auth, AuthErrorContext, AuthLoaded, AuthLoading, AuthParameters,
+    Authenticated, LoginLink, LogoutLink, TokenData,
+};
 use leptos_router::components::{ProtectedRoute, Route, Router, Routes};
 use leptos_router::path;
 use serde::Deserialize;
@@ -28,10 +31,7 @@ pub struct AppConfig {
 }
 
 #[derive(Clone)]
-pub struct AppGlobals {
-    auth_resource: LocalResource<Result<Auth, AuthError>>,
-}
-
+pub struct AppGlobals {}
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -48,22 +48,23 @@ pub fn App() -> impl IntoView {
                 .json::<AppConfig>()
                 .await
                 .map_err(Arc::new)?;
-            let auth = Auth::init(app_config.oidc.clone());
+            let _ = Auth::init(app_config.oidc.clone());
 
-            Ok(AppGlobals {
-                auth_resource: auth,
-            })
+            Ok(AppGlobals {})
         });
     provide_context(app_globals);
 
-    // Signal<Option<TokenData<Claims>>>
     let user = Signal::derive(move || {
-        auth_store.with(|auth_store| auth_store.authenticated().map(|auth|
-            auth.decoded_access_token::<Claims>(Algorithm::RS256, &["account"])
-        ).flatten())
+        auth_store.with(|auth_store| {
+            auth_store
+                .authenticated()
+                .map(|auth| auth.decoded_access_token::<Claims>(Algorithm::RS256, &["account"]))
+                .flatten()
+        })
     });
     provide_context(user);
-    let manager = move || user.with(|user| user.clone().map(|user| user.claims.has_group("managerrole")));
+    let manager = move || user.get().map(|user| user.claims.has_role("managerrole"));
+    let tester = move || user.get().map(|user| user.claims.has_group("testgroup"));
 
     view! {
         <Stylesheet id="leptos" href="/pkg/main.css"/>
@@ -82,15 +83,19 @@ pub fn App() -> impl IntoView {
                         condition=manager
                         redirect_path=|| "/"
                     />
+                    <ProtectedRoute
+                        path=path!("/tester")
+                        view=Tester
+                        condition=tester
+                        redirect_path=|| "/"
+                    />
                     <Route
                         path=path!("/profile")
                         view=|| {
                             view! {
                                 <AppConfigLoaded>
-                                    <p>Profile</p>
                                     <AuthLoaded>
                                         <Authenticated unauthenticated=Unauthenticated>
-                                            <p>Profile</p>
                                             <Profile/>
                                         </Authenticated>
                                     </AuthLoaded>
@@ -120,10 +125,7 @@ pub fn AppConfigLoaded(
         >
             { move || {
                 Suspend::new(async move {
-                    if let Ok(app_config) = app_globals.await {
-                        let auth_resource = app_config.auth_resource;
-                        //provide_context(auth_resource);
-                        // provides authentication data in leptos context required by login/logout button
+                    if let Ok(_app_config) = app_globals.await {
                         Either::Right(view! {
                             { children.read_value()() }
                         })
@@ -140,6 +142,16 @@ pub fn AppConfigLoaded(
 }
 
 #[component]
+pub fn Tester() -> impl IntoView {
+    view! {
+        <Title text="Tester"/>
+        <h1>Tester</h1>
+        <p>Your Tester Page</p>
+
+    }
+}
+
+#[component]
 pub fn Manager() -> impl IntoView {
     view! {
         <Title text="Management"/>
@@ -150,10 +162,10 @@ pub fn Manager() -> impl IntoView {
     }
 }
 
-
 #[component]
 pub fn AuthErrorPage() -> impl IntoView {
-    let auth_store = use_context::<RwSignal<Auth>>().expect("AuthStore not initialized in error page");
+    let auth_store =
+        use_context::<RwSignal<Auth>>().expect("AuthStore not initialized in error page");
     let error_message = move || auth_store.get().error().map(|err| format!("{err:?}"));
     view! {
         <h1>Error occurred</h1>
@@ -166,7 +178,16 @@ pub fn AuthErrorPage() -> impl IntoView {
 pub fn Navigation() -> impl IntoView {
     let user = use_context::<Signal<Option<TokenData<Claims>>>>()
         .expect("Navigation: user store should exist!");
-    let manager = move || user.get().map(|user| user.claims.has_role("managerrole")).unwrap_or(false);
+    let manager = move || {
+        user.get()
+            .map(|user| user.claims.has_role("managerrole"))
+            .unwrap_or(false)
+    };
+    let tester = move || {
+        user.get()
+            .map(|user| user.claims.has_group("testgroup") || user.claims.has_role("managerrole"))
+            .unwrap_or(false)
+    };
 
     view! {
         <h2>Navigation</h2>
@@ -176,9 +197,11 @@ pub fn Navigation() -> impl IntoView {
             <Show when=manager>
                 <li><a href="/manager">Management</a></li>
             </Show>
+            <Show when=tester>
+                <li><a href="/tester">Tester</a></li>
+            </Show>
         </ul>
         <AppConfigLoaded fallback=|| view! { <p>Loading ..</p> }>
-            Login/Logout:
             <AuthLoaded>
                 <Authenticated unauthenticated=move || view! { <LoginLink class="text-login">Sign in</LoginLink> }>
                     <LogoutLink class="text-logout">Sign out</LogoutLink>
@@ -196,11 +219,30 @@ pub fn DebugInfo() -> impl IntoView {
 
     let name = move || user.get().map(|user| user.claims.preferred_username);
     let email = move || user.get().map(|user| user.claims.email);
-    let groups = move || user.get().map(|user| user.claims.groups.into_iter().collect::<Vec<_>>().join(", "));
-    let roles = move || user.get().map(|user| user.claims.roles.into_iter().collect::<Vec<_>>().join(", "));
+    let groups = move || {
+        user.get().map(|user| {
+            user.claims
+                .groups
+                .into_iter()
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+    };
+    let roles = move || {
+        user.get()
+            .map(|user| user.claims.roles.into_iter().collect::<Vec<_>>().join(", "))
+    };
 
-    let manager = move || user.get().map(|user| user.claims.has_role("managerrole")).unwrap_or(false);
-    let tester = move || user.get().map(|user| user.claims.has_group("testgroup")).unwrap_or(false);
+    let manager = move || {
+        user.get()
+            .map(|user| user.claims.has_role("managerrole"))
+            .unwrap_or(false)
+    };
+    let tester = move || {
+        user.get()
+            .map(|user| user.claims.has_group("testgroup"))
+            .unwrap_or(false)
+    };
 
     view! {
         <h1>Debug</h1>
@@ -230,9 +272,10 @@ pub fn DebugInfo() -> impl IntoView {
                 <td>{ roles }</td>
             </tr>
         </table>
-        <AuthErrorContext fallback=|| view! { <p>no error context present</p>}>
+        <AuthErrorContext fallback=|| view! { <p>No error detected.</p>}>
             <AuthErrorPage></AuthErrorPage>
         </AuthErrorContext>
+        <AuthLoading><b>Authentication is loading</b></AuthLoading>
     }
 }
 

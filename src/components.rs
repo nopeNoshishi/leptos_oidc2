@@ -23,8 +23,7 @@
 */
 #![allow(clippy::must_use_candidate)]
 
-use crate::{Auth, AuthError};
-use leptos::either::Either;
+use crate::Auth;
 use leptos::prelude::*;
 
 /// A transparent component representing authenticated user status.
@@ -54,33 +53,16 @@ pub fn Authenticated(
 
 #[must_use]
 #[component(transparent)]
-pub fn AuthLoaded(
-    children: ChildrenFn,
-    #[prop(optional, into)] fallback: ViewFnOnce,
-) -> impl IntoView {
-    let auth_resource = use_context::<LocalResource<Result<Auth, AuthError>>>()
-        .expect("AuthLoaded: Local resource of auth does not exist");
+pub fn AuthLoaded(children: ChildrenFn, #[prop(optional, into)] fallback: ViewFn) -> impl IntoView {
+    let auth_store =
+        use_context::<RwSignal<Auth>>().expect("AuthStore not initialized in AuthLoaded component");
     let children = StoredValue::new(children);
+    let loaded = move || auth_store.get().is_loaded();
 
     view! {
-        <Suspense fallback>
-            { move || {
-                Suspend::new(async move {
-                    match auth_resource.await {
-                        Ok(_) => {
-                            Either::Right(view! {
-                                { children.read_value()() }
-                            })
-                        }
-                        Err(error) => {
-                            tracing::error!("AuthLoaded: Error loading authentication {}", error);
-                            Either::Left(())
-                        }
-                    }
-                })
-            }}
-
-        </Suspense>
+        <Show when=loaded fallback>
+            { children.read_value()() }
+        </Show>
     }
 }
 
@@ -134,17 +116,15 @@ pub fn LogoutLink(
 #[must_use]
 #[component(transparent)]
 pub fn AuthLoading(children: ChildrenFn) -> impl IntoView {
-    let auth_resource = use_context::<LocalResource<Result<Auth, AuthError>>>()
-        .expect("AuthLoading: Local resource of auth does not exist");
+    let auth_store =
+        use_context::<RwSignal<Auth>>().expect("AuthStore not initialized in AuthLoaded component");
+    let children = StoredValue::new(children);
+    let loading = move || auth_store.get().is_loading();
 
     view! {
-        <Suspense fallback=move || children() >
-            { move || {
-                Suspend::new(async move {
-                    let _ = auth_resource.await;
-                })
-            }}
-        </Suspense>
+        <Show when=loading fallback=|| ()>
+            { children.read_value()() }
+        </Show>
     }
 }
 
@@ -156,7 +136,7 @@ pub fn AuthErrorContext(
 ) -> impl IntoView {
     let auth_store =
         use_context::<RwSignal<Auth>>().expect("AuthErrorContext: RwSignal<AuthStore> not present");
-    let is_error = move || auth_store.with(|store| store.error().is_some());
+    let is_error = move || auth_store.get().error().is_some();
 
     view! {
         <Show when=is_error fallback=fallback >

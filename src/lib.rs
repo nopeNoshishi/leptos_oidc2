@@ -24,6 +24,7 @@
 
 #![allow(clippy::module_name_repetitions)]
 
+use std::ops::Not;
 use std::sync::Arc;
 
 use chrono::Local;
@@ -128,6 +129,16 @@ impl Auth {
             _ => None,
         }
     }
+
+    #[must_use]
+    pub fn is_loaded(&self) -> bool {
+        self.is_loading().not()
+    }
+
+    #[must_use]
+    pub fn is_loading(&self) -> bool {
+        matches!(self, Auth::Loading)
+    }
     #[must_use]
     pub fn error(&self) -> Option<AuthError> {
         match self {
@@ -147,7 +158,7 @@ impl Auth {
 
 impl Auth {
     /// Initializes a new `Auth` instance with the provided authentication
-    /// parameters. This function creates and returns an `Auth` struct
+    /// parameters. This function creates and returns an `Auth` enum
     /// configured for authentication.
     ///
     /// # Panics
@@ -196,22 +207,22 @@ impl Auth {
         });
         provide_context(auth_resource);
 
-        let load_resource = Action::new(|resource: &LocalResource<Result<Auth, AuthError>>| {
-            let resource = *resource;
-            async move {
-                tracing::debug!("Trigger loading auth resource.");
-                let result = resource.await;
-                match result {
-                    Ok(_) => {
-                        tracing::debug!("Successfully loaded auth resource.");
-                    }
-                    Err(error) => {
-                        tracing::info!("Error occurred while loading auth resource. {error:?}");
-                    }
-                }
-            }
-        });
-        load_resource.dispatch(auth_resource);
+        // let load_resource = Action::new(|resource: &LocalResource<Result<Auth, AuthError>>| {
+        //     let resource = *resource;
+        //     async move {
+        //         tracing::debug!("Trigger loading auth resource.");
+        //         let result = resource.await;
+        //         match result {
+        //             Ok(_) => {
+        //                 tracing::debug!("Successfully loaded auth resource.");
+        //             }
+        //             Err(error) => {
+        //                 tracing::info!("Error occurred while loading auth resource. {error:?}");
+        //             }
+        //         }
+        //     }
+        // });
+        // load_resource.dispatch(auth_resource);
 
         auth_resource
     }
