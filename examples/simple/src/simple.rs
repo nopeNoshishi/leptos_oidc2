@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, Link, Stylesheet, Title};
-use leptos_oidc::{Auth, AuthError, AuthErrorContext, AuthLoaded, AuthLoading, AuthParameters, AuthStore, Authenticated, Challenge, LoginLink, LogoutLink};
+use leptos_oidc::{Auth, AuthError, AuthErrorContext, AuthLoaded, AuthLoading, AuthParameters, Authenticated, Challenge, LoginLink, LogoutLink};
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 
@@ -16,7 +16,7 @@ pub fn App() -> impl IntoView {
         scope: Some("openid%20profile%20email".to_string()),
         audience: None,
     };
-    let auth_store: RwSignal<AuthStore> = RwSignal::new(AuthStore::default());
+    let auth_store: RwSignal<Auth> = RwSignal::new(Auth::default());
     provide_context(auth_store);
 
     let _ = Auth::init(parameters);
@@ -59,7 +59,7 @@ pub fn App() -> impl IntoView {
 
 #[component]
 pub fn ReloadAuthButton() -> impl IntoView {
-    let auth_resource = use_context::<LocalResource<Result<AuthStore, AuthError>>>()
+    let auth_resource = use_context::<LocalResource<Result<Auth, AuthError>>>()
         .expect("Local resource of Result<AuthStore, AuthError> not found!");
 
     view! {
@@ -75,12 +75,12 @@ pub fn ReloadAuthButton() -> impl IntoView {
 
 #[component]
 pub fn AuthErrorPage() -> impl IntoView {
-    let auth_store = use_context::<RwSignal<AuthStore>>()
+    let auth_store = use_context::<RwSignal<Auth>>()
         .expect("AuthErrorContext: RwSignal<AuthStore> not present");
     let error_message = move || {
         auth_store
             .get()
-            .get_error()
+            .error()
             .map(|error| format!("{error:?}"))
     };
 

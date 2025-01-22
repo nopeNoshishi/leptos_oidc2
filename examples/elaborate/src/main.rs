@@ -1,8 +1,8 @@
-use components::App;
+use elaborate::App;
 use leptos::prelude::*;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-mod components;
+mod elaborate;
 mod user;
 
 fn main() {

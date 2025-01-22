@@ -1,5 +1,3 @@
-use leptos::prelude::With;
-use reactive_stores::Store;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -52,43 +50,6 @@ impl Claims {
     }
 }
 
-#[derive(Clone, Debug, Default, Store)]
-pub struct User {
-    claims: Option<Claims>,
-}
-
-pub trait UserExtensions {
-    fn name(self) -> Option<String>;
-    fn email(self) -> Option<String>;
-    fn has_group(self, group: &str) -> Option<bool>;
-    fn has_role(self, role: &str) -> Option<bool>;
-    fn groups(self) -> Option<Vec<String>>;
-}
-
-impl UserExtensions for Store<User> {
-    fn name(self) -> Option<String> {
-        self.claims().with(|claim| claim.clone().map(|claim| claim.preferred_username))
-    }
-
-    fn email(self) -> Option<String> {
-        self.claims().with(|claim| claim.clone().map(|claim| claim.email)).flatten()
-    }
-
-    fn has_group(self, group: &str) -> Option<bool> {
-        self.claims().with(|claim| claim.clone().map(|claim| claim.has_group(group)))
-    }
-
-    fn has_role(self, role: &str) -> Option<bool> {
-        self.claims().with(|claim| claim.clone().map(|claim| claim.has_role(role)))
-    }
-
-    fn groups(self) -> Option<Vec<String>> {
-        self.claims().with(|claim| claim.clone().map(|claim| {
-            let groups_without_prefix = claim.groups.iter().map(|group| group.trim_start_matches('/').to_string()).collect::<Vec<_>>();
-            groups_without_prefix
-        }))
-    }
-}
 
 #[cfg(test)]
 mod tests {

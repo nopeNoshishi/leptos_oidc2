@@ -28,7 +28,7 @@ use std::sync::Arc;
 
 use chrono::Local;
 use codee::string::JsonSerdeCodec;
-use jsonwebtoken::{decode, jwk::Jwk, DecodingKey};
+use jsonwebtoken::jwk::Jwk;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_router::hooks::{use_navigate, use_query};
@@ -39,7 +39,7 @@ use leptos_use::{
     use_timeout_fn, UseTimeoutFnReturn,
 };
 use response::{CallbackResponse, SuccessCallbackResponse, TokenResponse};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use storage::{TokenStorage, CODE_VERIFIER_KEY, LOCAL_STORAGE_KEY};
 use utils::ParamBuilder;
 
@@ -104,17 +104,8 @@ pub struct Keys {
     keys: Vec<Jwk>,
 }
 
-/// Authentication handler responsible for handling user authentication and
-/// token management.
-#[derive(Clone, Debug)]
-pub struct Auth {
-    parameters: AuthParameters,
-    issuer: IssuerMetadata,
-    token_store: RwSignal<TokenStorageResult>,
-}
-
 #[derive(Clone, Debug, Default)]
-pub enum AuthStore {
+pub enum Auth {
     #[default]
     Loading,
     Unauthenticated(UnauthenticatedData),
@@ -122,25 +113,25 @@ pub enum AuthStore {
     Error(AuthError),
 }
 
-impl AuthStore {
+impl Auth {
     #[must_use]
     pub fn get_unauthenticated(&self) -> Option<UnauthenticatedData> {
         match self {
-            AuthStore::Unauthenticated(auth) => Some(auth.clone()),
+            Auth::Unauthenticated(auth) => Some(auth.clone()),
             _ => None,
         }
     }
     #[must_use]
-    pub fn get_authenticated(&self) -> Option<AuthenticatedData> {
+    pub fn authenticated(&self) -> Option<AuthenticatedData> {
         match self {
-            AuthStore::Authenticated(auth) => Some(auth.clone()),
+            Auth::Authenticated(auth) => Some(auth.clone()),
             _ => None,
         }
     }
     #[must_use]
-    pub fn get_error(&self) -> Option<AuthError> {
+    pub fn error(&self) -> Option<AuthError> {
         match self {
-            AuthStore::Error(auth) => Some(auth.clone()),
+            Auth::Error(auth) => Some(auth.clone()),
             _ => None,
         }
     }
@@ -148,19 +139,9 @@ impl AuthStore {
     #[must_use]
     pub fn is_authenticated(&self) -> bool {
         match self {
-            AuthStore::Authenticated(auth) => auth.token_store.is_valid(),
+            Auth::Authenticated(auth) => auth.token_store.is_valid(),
             _ => false,
         }
-    }
-}
-
-trait DecodeTokenStorage {
-    fn decode_token_storage(&self) -> Option<TokenStorage>;
-}
-
-impl DecodeTokenStorage for RwSignal<TokenStorageResult> {
-    fn decode_token_storage(&self) -> Option<TokenStorage> {
-        self.get().ok().flatten()
     }
 }
 
@@ -168,19 +149,34 @@ impl Auth {
     /// Initializes a new `Auth` instance with the provided authentication
     /// parameters. This function creates and returns an `Auth` struct
     /// configured for authentication.
+    ///
+    /// # Panics
+    ///
+    /// The initialization panics if the user of this library
+    /// did construct the `RwSignal<Auth>` and provided it in the leptos context
+    ///
+    /// ```
+    /// use leptos::prelude::*;
+    /// use leptos_oidc::Auth;
+    /// let auth_store: RwSignal<Auth> = RwSignal::new(Auth::default());
+    /// provide_context(auth_store);
+    /// ```
+    ///
     #[must_use]
-    pub fn init(parameters: AuthParameters) -> LocalResource<Result<AuthStore, AuthError>> {
+    pub fn init(parameters: AuthParameters) -> LocalResource<Result<Auth, AuthError>> {
         tracing::debug!("Auth resource initialized.");
 
         let auth_resource = LocalResource::new(move || {
-            let auth_store_signal = expect_context::<RwSignal<AuthStore>>();
+            let auth_store_signal =
+                use_context::<RwSignal<Auth>>().expect("RwSignal<Auth> not initialized.");
             let parameters = parameters.clone();
             async move {
-                tracing::info!("Loading auth resource.");
-
-                async fn init(parameters: &AuthParameters, auth_store_signal: RwSignal<AuthStore>) -> Result<AuthStore, AuthError> {
-                    let issuer = init_issuer_resource(&parameters).await?;
-                    let auth_store = init_auth_store(&parameters, issuer.clone()).await?;
+                async fn init(
+                    parameters: &AuthParameters,
+                    auth_store_signal: RwSignal<Auth>,
+                ) -> Result<Auth, AuthError> {
+                    let issuer = init_issuer_resource(parameters).await?;
+                    let auth_store = init_auth_store(parameters, issuer.clone()).await?;
                     create_handle_refresh_effect(parameters.clone(), issuer, auth_store_signal);
                     Ok(auth_store)
                 }
@@ -192,7 +188,7 @@ impl Auth {
                         Ok(auth_store)
                     }
                     Err(error) => {
-                        auth_store_signal.set(AuthStore::Error(error.clone()));
+                        auth_store_signal.set(Auth::Error(error.clone()));
                         Err(error)
                     }
                 }
@@ -200,99 +196,24 @@ impl Auth {
         });
         provide_context(auth_resource);
 
-        let load_resource =
-            Action::new(|resource: &LocalResource<Result<AuthStore, AuthError>>| {
-                let resource = *resource;
-                async move {
-                    tracing::info!("Trigger loading auth resource.");
-                    let result = resource.await;
-                    match result {
-                        Ok(ok) => {
-                            tracing::info!("Successfully loaded auth resource. {ok:?}");
-                        }
-                        Err(error) => {
-                            tracing::info!("Successfully loaded auth resource. {error:?}");
-                        }
+        let load_resource = Action::new(|resource: &LocalResource<Result<Auth, AuthError>>| {
+            let resource = *resource;
+            async move {
+                tracing::debug!("Trigger loading auth resource.");
+                let result = resource.await;
+                match result {
+                    Ok(_) => {
+                        tracing::debug!("Successfully loaded auth resource.");
+                    }
+                    Err(error) => {
+                        tracing::info!("Error occurred while loading auth resource. {error:?}");
                     }
                 }
-            });
+            }
+        });
         load_resource.dispatch(auth_resource);
 
         auth_resource
-    }
-
-    /// Checks if the user is authenticated.
-    #[must_use]
-    pub fn authenticated(&self) -> bool {
-        self.token_store
-            .decode_token_storage()
-            .is_some_and(|storage| storage.is_valid())
-    }
-
-    /// Returns the ID token, if available, from the authentication response.
-    #[must_use]
-    pub fn id_token(&self) -> Option<String> {
-        self.token_store
-            .decode_token_storage()
-            .map(|response| response.id_token)
-    }
-
-    /// Returns the access token, if available, from the authentication response.
-    #[must_use]
-    pub fn access_token(&self) -> Option<String> {
-        self.token_store
-            .decode_token_storage()
-            .map(|response| response.access_token)
-    }
-
-    /// Returns the decoded id token, if available, from the authentication response.
-    #[must_use]
-    pub fn decoded_id_token<T: DeserializeOwned>(
-        &self,
-        algorithm: Algorithm,
-        audience: &[&str],
-    ) -> Option<TokenData<T>> {
-        let token = self.token_store.decode_token_storage()?.id_token;
-        self.decode_token(algorithm, audience, &token)
-    }
-
-    /// Returns the decoded access token, if available, from the authentication response.
-    #[must_use]
-    pub fn decoded_access_token<T: DeserializeOwned>(
-        &self,
-        algorithm: Algorithm,
-        audience: &[&str],
-    ) -> Option<TokenData<T>> {
-        let token = self.token_store.decode_token_storage()?.access_token;
-        self.decode_token(algorithm, audience, &token)
-    }
-
-    fn decode_token<T: DeserializeOwned>(
-        &self,
-        algorithm: Algorithm,
-        audience: &[&str],
-        token: &str,
-    ) -> Option<TokenData<T>> {
-        let mut validation = Validation::new(algorithm);
-        validation.set_audience(audience);
-
-        for key in &self.issuer.keys.keys {
-            let Ok(decoding_key) = DecodingKey::from_jwk(key) else {
-                continue;
-            };
-
-            match decode::<T>(token, &decoding_key, &validation) {
-                Ok(data) => return Some(data),
-                Err(_) => continue,
-            }
-        }
-        None
-    }
-
-    /// This can be used to set the `redirect_uri` dynamically. It's helpful if
-    /// you would like to be redirected to the current page.
-    pub fn set_redirect_uri(&mut self, uri: String) {
-        self.parameters.redirect_uri = uri;
     }
 }
 
@@ -330,7 +251,7 @@ async fn init_issuer_resource(parameters: &AuthParameters) -> Result<IssuerMetad
 async fn init_auth_store(
     parameters: &AuthParameters,
     issuer: IssuerMetadata,
-) -> Result<AuthStore, AuthError> {
+) -> Result<Auth, AuthError> {
     let (local_storage, set_local_storage, _remove_local_storage) =
         use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY);
 
@@ -349,7 +270,7 @@ async fn init_auth_store(
 
             if let Some(token_storage) = local_storage.get_untracked() {
                 if token_storage.is_valid() {
-                    return Ok(AuthStore::Authenticated(AuthenticatedData {
+                    return Ok(Auth::Authenticated(AuthenticatedData {
                         parameters: parameters.clone(),
                         issuer,
                         token_store: token_storage,
@@ -361,7 +282,7 @@ async fn init_auth_store(
 
             set_local_storage.set(Some(token_storage.clone()));
 
-            Ok(AuthStore::Authenticated(AuthenticatedData {
+            Ok(Auth::Authenticated(AuthenticatedData {
                 parameters: parameters.clone(),
                 issuer,
                 token_store: token_storage,
@@ -385,16 +306,16 @@ async fn init_auth_store(
                 // remove_local_storage(); // does not seem to delete local storage
             }
 
-            Ok(AuthStore::Unauthenticated(UnauthenticatedData {
+            Ok(Auth::Unauthenticated(UnauthenticatedData {
                 parameters: parameters.clone(),
                 issuer,
             }))
         }
-        Ok(CallbackResponse::Error(error)) => Ok(AuthStore::Error(AuthError::Provider(error))),
+        Ok(CallbackResponse::Error(error)) => Ok(Auth::Error(AuthError::Provider(error))),
         Err(_no_query_parameters) => {
             if let Some(token_store) = local_storage.get_untracked() {
                 if token_store.is_valid() {
-                    Ok(AuthStore::Authenticated(AuthenticatedData {
+                    Ok(Auth::Authenticated(AuthenticatedData {
                         parameters: parameters.clone(),
                         issuer,
                         token_store,
@@ -402,13 +323,13 @@ async fn init_auth_store(
                 } else {
                     set_local_storage.set(None);
                     // remove_local_storage(); // does not seem to delete local storage
-                    Ok(AuthStore::Unauthenticated(UnauthenticatedData {
+                    Ok(Auth::Unauthenticated(UnauthenticatedData {
                         parameters: parameters.clone(),
                         issuer,
                     }))
                 }
             } else {
-                Ok(AuthStore::Unauthenticated(UnauthenticatedData {
+                Ok(Auth::Unauthenticated(UnauthenticatedData {
                     parameters: parameters.clone(),
                     issuer,
                 }))
@@ -421,10 +342,10 @@ async fn init_auth_store(
 fn create_handle_refresh_effect(
     parameters: AuthParameters,
     issuer: IssuerMetadata,
-    token_storage_signal: RwSignal<AuthStore>,
+    token_storage_signal: RwSignal<Auth>,
 ) {
     Effect::new(move || {
-        if let Some(authenticated) = token_storage_signal.get().get_authenticated() {
+        if let Some(authenticated) = token_storage_signal.get().authenticated() {
             let expires_in = authenticated.token_store.expires_in - Local::now().naive_utc();
             #[allow(clippy::cast_precision_loss)]
             let wait_milliseconds =
@@ -435,7 +356,7 @@ fn create_handle_refresh_effect(
                 move |(parameters, issuer, token_signal, refresh_token): (
                     AuthParameters,
                     IssuerMetadata,
-                    RwSignal<AuthStore>,
+                    RwSignal<Auth>,
                     String,
                 )| {
                     spawn_local(async move {
@@ -452,19 +373,17 @@ fn create_handle_refresh_effect(
                         {
                             Ok(token_store) => {
                                 // refreshing token was successful, change signal to re-run effect
-                                token_signal.set(AuthStore::Authenticated(
-                                    AuthenticatedData {
-                                        parameters,
-                                        issuer,
-                                        token_store: token_store.clone(),
-                                    },
-                                ));
+                                token_signal.set(Auth::Authenticated(AuthenticatedData {
+                                    parameters,
+                                    issuer,
+                                    token_store: token_store.clone(),
+                                }));
                                 set_storage.set(Some(token_store));
                             }
                             Err(error) => {
                                 tracing::error!("Failed to refresh token storage: {}", error);
                                 // change signal to re-run effect
-                                token_signal.set(AuthStore::Unauthenticated(UnauthenticatedData {
+                                token_signal.set(Auth::Unauthenticated(UnauthenticatedData {
                                     parameters,
                                     issuer,
                                 }));
