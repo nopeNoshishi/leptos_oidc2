@@ -159,6 +159,12 @@ impl Auth {
 }
 
 impl Auth {
+    /// Construct the `AuthSignal` that must be provided in the context
+    #[must_use]
+    pub fn signal() -> AuthSignal {
+        RwSignal::new(Auth::default())
+    }
+
     /// Initializes a new `Auth` instance with the provided authentication
     /// parameters. This function creates and returns an `Auth` enum
     /// configured for authentication.
@@ -166,12 +172,12 @@ impl Auth {
     /// # Panics
     ///
     /// The initialization panics if the user of this library
-    /// did construct the `AuthSignal` and provided it in the leptos context
+    /// did not construct the `AuthSignal` and provided it in the leptos context
     ///
     /// ```
     /// use leptos::prelude::*;
     /// use leptos_oidc::{Auth, AuthSignal};
-    /// let auth: AuthSignal = RwSignal::new(Auth::default());
+    /// let auth: AuthSignal = Auth::signal();
     /// provide_context(auth);
     /// ```
     ///

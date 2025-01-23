@@ -17,7 +17,7 @@ Breaking changes:
   Previously the init did use `provide_context` to provide the signal in the leptos context but this would require initializing somewhere higher up in the reactive tree. 
   Now the user is required to provide the AuthSignal:
     ```
-    let auth: AuthSignal = RwSignal::new(Auth::default());
+    let auth: AuthSignal = Auth::signal();
     provide_context(auth);
     ```
 - Parse response parameters in Authentication Code Flow from authentication provider (issuer) only from the paths indicated by `redirect_uri` and the `post_logout_redirect_uri` (e.g. `/profile` and `/logout`).

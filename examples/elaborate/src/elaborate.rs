@@ -47,7 +47,7 @@ pub fn App() -> impl IntoView {
 
 #[component]
 pub fn AppWithRouter() -> impl IntoView {
-    let auth: AuthSignal = RwSignal::new(Auth::default());
+    let auth: AuthSignal = Auth::signal();
     provide_context(auth);
 
     let app_globals: LocalResource<Result<AppGlobals, AppConfigError>> =

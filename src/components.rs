@@ -38,7 +38,7 @@ pub fn Authenticated(
     #[prop(optional, into)] unauthenticated: ViewFn,
 ) -> impl IntoView {
     let auth =
-        use_context::<AuthSignal>().expect("AuthStore not initialized in Authenticated component");
+        use_context::<AuthSignal>().expect("AuthSignal not initialized in Authenticated component");
     let unauthenticated = move || unauthenticated.run();
     let authenticated = move || auth.get().is_authenticated();
     let children = StoredValue::new(children);
@@ -57,7 +57,7 @@ pub fn Authenticated(
 #[component(transparent)]
 pub fn AuthLoaded(children: ChildrenFn, #[prop(optional, into)] fallback: ViewFn) -> impl IntoView {
     let auth =
-        use_context::<AuthSignal>().expect("AuthStore not initialized in AuthLoaded component");
+        use_context::<AuthSignal>().expect("AuthSignal not initialized in AuthLoaded component");
     let children = StoredValue::new(children);
     let loaded = move || auth.get().is_loaded();
 
@@ -76,7 +76,7 @@ pub fn LoginLink(
     children: Children,
     #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
-    let auth = use_context::<AuthSignal>().expect("AuthStore not present in LoginLink");
+    let auth = use_context::<AuthSignal>().expect("AuthSignal not present in LoginLink");
     let login_url = move || {
         auth.with(|auth| {
             auth.get_unauthenticated()
@@ -99,7 +99,7 @@ pub fn LogoutLink(
     children: Children,
     #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
-    let auth = use_context::<AuthSignal>().expect("AuthStore not present in LogoutLink");
+    let auth = use_context::<AuthSignal>().expect("AuthSignal not present in LogoutLink");
     let logout_url = move || {
         auth.get()
             .authenticated()
@@ -117,7 +117,7 @@ pub fn LogoutLink(
 #[component(transparent)]
 pub fn AuthLoading(children: ChildrenFn) -> impl IntoView {
     let auth =
-        use_context::<AuthSignal>().expect("AuthStore not initialized in AuthLoaded component");
+        use_context::<AuthSignal>().expect("AuthSignal not initialized in AuthLoaded component");
     let children = StoredValue::new(children);
     let loading = move || auth.get().is_loading();
 
@@ -135,7 +135,7 @@ pub fn AuthErrorContext(
     #[prop(optional, into)] fallback: ViewFn,
 ) -> impl IntoView {
     let auth =
-        use_context::<AuthSignal>().expect("AuthErrorContext: RwSignal<AuthStore> not present");
+        use_context::<AuthSignal>().expect("AuthErrorContext: RwSignal<AuthSignal> not present");
     let is_error = move || auth.get().error().is_some();
 
     view! {
@@ -148,7 +148,7 @@ pub fn AuthErrorContext(
 #[must_use]
 #[component]
 pub fn ReloadButton(#[prop(optional, into)] path: Option<String>) -> impl IntoView {
-    let auth = use_context::<AuthSignal>().expect("AuthStore not initialized in ReloadButton");
+    let auth = use_context::<AuthSignal>().expect("AuthSignal not initialized in ReloadButton");
     let navigate = use_navigate();
     // Navigate to following address to trigger an error state, then use reload button:
     //   http://localhost:3000/profile?error=foo&error_description=bla

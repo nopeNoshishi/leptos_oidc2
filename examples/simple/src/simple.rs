@@ -32,7 +32,7 @@ pub fn AppWithRouter() -> impl IntoView {
         scope: Some("openid%20profile%20email".to_string()),
         audience: None,
     };
-    let auth: AuthSignal = RwSignal::new(Auth::default());
+    let auth: AuthSignal = Auth::signal();
     provide_context(auth);
 
     let _ = Auth::init(parameters);
