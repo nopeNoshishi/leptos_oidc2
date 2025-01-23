@@ -2013,7 +2013,6 @@ dependencies = [
  "leptos_meta",
  "leptos_oidc",
  "leptos_router",
- "reactive_stores",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
