@@ -173,11 +173,13 @@ impl Auth {
     /// provide_context(auth_store);
     /// ```
     ///
-    #[must_use]
-    pub fn init(parameters: AuthParameters) -> LocalResource<Result<Auth, AuthError>> {
-        tracing::debug!("Auth resource initialized.");
+    pub fn init(parameters: AuthParameters) {
+        let auth_signal = use_context::<RwSignal<Auth>>().expect("RwSignal<Auth> not initialized.");
+        let fetch_resource = RwSignal::new(0);
+        let pending_resource = RwSignal::new(true);
 
-        let auth_resource = LocalResource::new(move || {
+        LocalResource::new(move || {
+            let _ = fetch_resource.get();
             let auth_store_signal =
                 use_context::<RwSignal<Auth>>().expect("RwSignal<Auth> not initialized.");
             let parameters = parameters.clone();
@@ -196,35 +198,26 @@ impl Auth {
                 match init(&parameters, auth_store_signal).await {
                     Ok(auth_store) => {
                         auth_store_signal.set(auth_store.clone());
+                        pending_resource.set(false);
                         Ok(auth_store)
                     }
                     Err(error) => {
                         auth_store_signal.set(Auth::Error(error.clone()));
+                        pending_resource.set(false);
                         Err(error)
                     }
                 }
             }
         });
-        provide_context(auth_resource);
 
-        // let load_resource = Action::new(|resource: &LocalResource<Result<Auth, AuthError>>| {
-        //     let resource = *resource;
-        //     async move {
-        //         tracing::debug!("Trigger loading auth resource.");
-        //         let result = resource.await;
-        //         match result {
-        //             Ok(_) => {
-        //                 tracing::debug!("Successfully loaded auth resource.");
-        //             }
-        //             Err(error) => {
-        //                 tracing::info!("Error occurred while loading auth resource. {error:?}");
-        //             }
-        //         }
-        //     }
-        // });
-        // load_resource.dispatch(auth_resource);
-
-        auth_resource
+        Effect::new(move || {
+            let signal = auth_signal.get();
+            if matches!(signal, Auth::Loading) && pending_resource.get().not() {
+                pending_resource.set(true);
+                let count = fetch_resource.get();
+                fetch_resource.set(count + 1);
+            }
+        });
     }
 }
 
@@ -300,7 +293,6 @@ async fn init_auth_store(
             }))
         }
         Ok(CallbackResponse::SuccessLogout(response)) => {
-            tracing::debug!("Logout redirect");
             use_navigate()(
                 &parameters.post_logout_redirect_uri,
                 NavigateOptions {
@@ -310,7 +302,6 @@ async fn init_auth_store(
                     state: leptos_router::location::State::new(None),
                 },
             );
-            tracing::debug!("Logout: before destroying session");
             if response.destroy_session {
                 tracing::debug!("Logout: destroying session");
                 set_local_storage.set(None);

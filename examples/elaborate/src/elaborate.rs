@@ -48,7 +48,7 @@ pub fn App() -> impl IntoView {
                 .json::<AppConfig>()
                 .await
                 .map_err(Arc::new)?;
-            let _ = Auth::init(app_config.oidc.clone());
+            Auth::init(app_config.oidc.clone());
 
             Ok(AppGlobals {})
         });
@@ -75,6 +75,7 @@ pub fn App() -> impl IntoView {
             <h1>Leptos OIDC</h1>
                 <Navigation/>
                 <DebugInfo/>
+                <ReloadButton/>
                 <Routes fallback=Home>
                     <Route path=path!("/") view=Home/>
                     <ProtectedRoute
@@ -107,6 +108,21 @@ pub fn App() -> impl IntoView {
         </Router>
 
 
+    }
+}
+
+#[component]
+fn ReloadButton() -> impl IntoView {
+    let auth_store = use_context::<RwSignal<Auth>>()
+        .expect("AuthStore not initialized in ReloadButton");
+
+    view! {
+        <button on:click=move |_| {
+                auth_store.set(Auth::Loading);
+            }
+        >
+            "Reload"
+        </button>
     }
 }
 
