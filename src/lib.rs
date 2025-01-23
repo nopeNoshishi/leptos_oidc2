@@ -105,6 +105,7 @@ pub struct Keys {
     keys: Vec<Jwk>,
 }
 
+// The different states of the main authentication process
 #[derive(Clone, Debug, Default)]
 pub enum Auth {
     #[default]
@@ -178,6 +179,9 @@ impl Auth {
         let fetch_resource = RwSignal::new(0);
         let pending_resource = RwSignal::new(true);
 
+        // Create local resource to fetch issuer metadata and handle the state of authentication
+        // This is a local resource which integrates this asynchronous task in the reactive system of leptos
+        // This is required to have the ability to use navigation (use_navigate()) depending on the query parameters.
         LocalResource::new(move || {
             let _ = fetch_resource.get();
             let parameters = parameters.clone();
@@ -208,6 +212,7 @@ impl Auth {
             }
         });
 
+        // re-fetch the local resource in case the signal is set back to Auth::Loading
         Effect::new(move || {
             let signal = auth.get();
             if matches!(signal, Auth::Loading) && pending_resource.get().not() {
@@ -335,7 +340,7 @@ async fn init_auth(parameters: &AuthParameters, issuer: IssuerMetadata) -> Resul
     }
 }
 
-/// This will handle the refresh, if there is an refresh token.
+/// This will handle the refresh, if there is a refresh token.
 fn create_handle_refresh_effect(
     parameters: AuthParameters,
     issuer: IssuerMetadata,

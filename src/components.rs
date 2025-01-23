@@ -25,6 +25,8 @@
 
 use crate::Auth;
 use leptos::prelude::*;
+use leptos_router::hooks::use_navigate;
+use leptos_router::NavigateOptions;
 
 /// A transparent component representing authenticated user status.
 /// It provides a way to conditionally render its children based on the user's authentication status.
@@ -140,5 +142,28 @@ pub fn AuthErrorContext(
         <Show when=is_error fallback=fallback >
             { children() }
         </Show>
+    }
+}
+
+#[must_use]
+#[component]
+pub fn ReloadButton(#[prop(optional, into)] path: Option<String>) -> impl IntoView {
+    let auth = use_context::<RwSignal<Auth>>().expect("AuthStore not initialized in ReloadButton");
+    let navigate = use_navigate();
+    // Navigate to following address to trigger an error state, then use reload button:
+    // http://localhost:3000/?error=foo&error_description=bla
+    let path = path.unwrap_or("/".to_string());
+
+    view! {
+        <button
+            on:click=move |_| {
+                // trigger reload of authentication
+                auth.set(Auth::Loading);
+                // remove query parameters by navigating back to home
+                navigate(&path, NavigateOptions::default());
+            }
+        >
+            "Reload"
+        </button>
     }
 }
