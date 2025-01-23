@@ -36,8 +36,8 @@ pub struct AppGlobals {}
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
-    let auth_store: RwSignal<Auth> = RwSignal::new(Auth::default());
-    provide_context(auth_store);
+    let auth: RwSignal<Auth> = RwSignal::new(Auth::default());
+    provide_context(auth);
 
     let app_globals: LocalResource<Result<AppGlobals, AppConfigError>> =
         LocalResource::new(move || async {
@@ -55,8 +55,8 @@ pub fn App() -> impl IntoView {
     provide_context(app_globals);
 
     let user = Signal::derive(move || {
-        auth_store.with(|auth_store| {
-            auth_store
+        auth.with(|auth| {
+            auth
                 .authenticated()
                 .map(|auth| auth.decoded_access_token::<Claims>(Algorithm::RS256, &["account"]))
                 .flatten()
@@ -64,7 +64,10 @@ pub fn App() -> impl IntoView {
     });
     provide_context(user);
     let manager = move || user.get().map(|user| user.claims.has_role("managerrole"));
-    let tester = move || user.get().map(|user| user.claims.has_group("testgroup"));
+    let tester = move || {
+        user.get()
+            .map(|user| user.claims.has_group("testgroup") || user.claims.has_role("managerrole"))
+    };
 
     view! {
         <Stylesheet id="leptos" href="/pkg/main.css"/>
@@ -113,12 +116,12 @@ pub fn App() -> impl IntoView {
 
 #[component]
 fn ReloadButton() -> impl IntoView {
-    let auth_store = use_context::<RwSignal<Auth>>()
+    let auth = use_context::<RwSignal<Auth>>()
         .expect("AuthStore not initialized in ReloadButton");
 
     view! {
         <button on:click=move |_| {
-                auth_store.set(Auth::Loading);
+                auth.set(Auth::Loading);
             }
         >
             "Reload"
@@ -180,9 +183,9 @@ pub fn Manager() -> impl IntoView {
 
 #[component]
 pub fn AuthErrorPage() -> impl IntoView {
-    let auth_store =
+    let auth =
         use_context::<RwSignal<Auth>>().expect("AuthStore not initialized in error page");
-    let error_message = move || auth_store.get().error().map(|err| format!("{err:?}"));
+    let error_message = move || auth.get().error().map(|err| format!("{err:?}"));
     view! {
         <h1>Error occurred</h1>
         <p>There was an error in the authentication process!</p>

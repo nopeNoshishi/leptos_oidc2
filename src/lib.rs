@@ -169,40 +169,38 @@ impl Auth {
     /// ```
     /// use leptos::prelude::*;
     /// use leptos_oidc::Auth;
-    /// let auth_store: RwSignal<Auth> = RwSignal::new(Auth::default());
-    /// provide_context(auth_store);
+    /// let auth: RwSignal<Auth> = RwSignal::new(Auth::default());
+    /// provide_context(auth);
     /// ```
     ///
     pub fn init(parameters: AuthParameters) {
-        let auth_signal = use_context::<RwSignal<Auth>>().expect("RwSignal<Auth> not initialized.");
+        let auth = use_context::<RwSignal<Auth>>().expect("RwSignal<Auth> not initialized.");
         let fetch_resource = RwSignal::new(0);
         let pending_resource = RwSignal::new(true);
 
         LocalResource::new(move || {
             let _ = fetch_resource.get();
-            let auth_store_signal =
-                use_context::<RwSignal<Auth>>().expect("RwSignal<Auth> not initialized.");
             let parameters = parameters.clone();
             async move {
                 async fn init(
                     parameters: &AuthParameters,
-                    auth_store_signal: RwSignal<Auth>,
+                    auth: RwSignal<Auth>,
                 ) -> Result<Auth, AuthError> {
                     let issuer = init_issuer_resource(parameters).await?;
-                    let auth_store = init_auth_store(parameters, issuer.clone()).await?;
-                    create_handle_refresh_effect(parameters.clone(), issuer, auth_store_signal);
-                    Ok(auth_store)
+                    let auth_result = init_auth(parameters, issuer.clone()).await?;
+                    create_handle_refresh_effect(parameters.clone(), issuer, auth);
+                    Ok(auth_result)
                 }
 
                 // update signal
-                match init(&parameters, auth_store_signal).await {
-                    Ok(auth_store) => {
-                        auth_store_signal.set(auth_store.clone());
+                match init(&parameters, auth).await {
+                    Ok(auth_result) => {
+                        auth.set(auth_result.clone());
                         pending_resource.set(false);
-                        Ok(auth_store)
+                        Ok(auth)
                     }
                     Err(error) => {
-                        auth_store_signal.set(Auth::Error(error.clone()));
+                        auth.set(Auth::Error(error.clone()));
                         pending_resource.set(false);
                         Err(error)
                     }
@@ -211,7 +209,7 @@ impl Auth {
         });
 
         Effect::new(move || {
-            let signal = auth_signal.get();
+            let signal = auth.get();
             if matches!(signal, Auth::Loading) && pending_resource.get().not() {
                 pending_resource.set(true);
                 let count = fetch_resource.get();
@@ -252,10 +250,7 @@ async fn init_issuer_resource(parameters: &AuthParameters) -> Result<IssuerMetad
 }
 
 /// Initialize the auth resource, which will handle the entire state of the authentication.
-async fn init_auth_store(
-    parameters: &AuthParameters,
-    issuer: IssuerMetadata,
-) -> Result<Auth, AuthError> {
+async fn init_auth(parameters: &AuthParameters, issuer: IssuerMetadata) -> Result<Auth, AuthError> {
     let (local_storage, set_local_storage, _remove_local_storage) =
         use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY);
 
@@ -344,10 +339,10 @@ async fn init_auth_store(
 fn create_handle_refresh_effect(
     parameters: AuthParameters,
     issuer: IssuerMetadata,
-    token_storage_signal: RwSignal<Auth>,
+    auth: RwSignal<Auth>,
 ) {
     Effect::new(move || {
-        if let Some(authenticated) = token_storage_signal.get().authenticated() {
+        if let Some(authenticated) = auth.get().authenticated() {
             let expires_in = authenticated.token_store.expires_in - Local::now().naive_utc();
             #[allow(clippy::cast_precision_loss)]
             let wait_milliseconds =
@@ -400,7 +395,7 @@ fn create_handle_refresh_effect(
             start((
                 parameters.clone(),
                 issuer.clone(),
-                token_storage_signal,
+                auth,
                 authenticated.token_store.refresh_token.clone(),
             ));
         }

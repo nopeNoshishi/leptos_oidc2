@@ -35,10 +35,10 @@ pub fn Authenticated(
     children: ChildrenFn,
     #[prop(optional, into)] unauthenticated: ViewFn,
 ) -> impl IntoView {
-    let auth_store = use_context::<RwSignal<Auth>>()
+    let auth = use_context::<RwSignal<Auth>>()
         .expect("AuthStore not initialized in Authenticated component");
     let unauthenticated = move || unauthenticated.run();
-    let authenticated = move || auth_store.get().is_authenticated();
+    let authenticated = move || auth.get().is_authenticated();
     let children = StoredValue::new(children);
 
     view! {
@@ -54,10 +54,10 @@ pub fn Authenticated(
 #[must_use]
 #[component(transparent)]
 pub fn AuthLoaded(children: ChildrenFn, #[prop(optional, into)] fallback: ViewFn) -> impl IntoView {
-    let auth_store =
+    let auth =
         use_context::<RwSignal<Auth>>().expect("AuthStore not initialized in AuthLoaded component");
     let children = StoredValue::new(children);
-    let loaded = move || auth_store.get().is_loaded();
+    let loaded = move || auth.get().is_loaded();
 
     view! {
         <Show when=loaded fallback>
@@ -74,12 +74,11 @@ pub fn LoginLink(
     children: Children,
     #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
-    let auth_store = use_context::<RwSignal<Auth>>().expect("AuthStore not present in LoginLink");
+    let auth = use_context::<RwSignal<Auth>>().expect("AuthStore not present in LoginLink");
     let login_url = move || {
-        auth_store.with(|auth_store| {
-            auth_store
-                .get_unauthenticated()
-                .map(|unauth| unauth.login_url())
+        auth.with(|auth| {
+            auth.get_unauthenticated()
+                .map(|unauthenticated| unauthenticated.login_url())
         })
     };
 
@@ -102,8 +101,7 @@ pub fn LogoutLink(
     let logout_url = move || {
         auth.get()
             .authenticated()
-            .expect("LogoutLink should be wrapped in Authenticated component!")
-            .logout_url()
+            .map(|authenticated| authenticated.logout_url())
     };
 
     view! {
@@ -116,10 +114,10 @@ pub fn LogoutLink(
 #[must_use]
 #[component(transparent)]
 pub fn AuthLoading(children: ChildrenFn) -> impl IntoView {
-    let auth_store =
+    let auth =
         use_context::<RwSignal<Auth>>().expect("AuthStore not initialized in AuthLoaded component");
     let children = StoredValue::new(children);
-    let loading = move || auth_store.get().is_loading();
+    let loading = move || auth.get().is_loading();
 
     view! {
         <Show when=loading fallback=|| ()>
@@ -134,9 +132,9 @@ pub fn AuthErrorContext(
     children: ChildrenFn,
     #[prop(optional, into)] fallback: ViewFn,
 ) -> impl IntoView {
-    let auth_store =
+    let auth =
         use_context::<RwSignal<Auth>>().expect("AuthErrorContext: RwSignal<AuthStore> not present");
-    let is_error = move || auth_store.get().error().is_some();
+    let is_error = move || auth.get().error().is_some();
 
     view! {
         <Show when=is_error fallback=fallback >

@@ -97,13 +97,23 @@ use leptos_oidc::Auth;
 
 #[component]
 fn MyComponent() {
-    let auth = expect_context::<Auth>();  // TODO: clarify readme examples
-
+    let auth = expect_context::<RwSignal<Auth>>();
+  
     // Generate the login URL to initiate the authentication process.
-    let login_url = move || auth.login_url();
-
-    // Generate the logout URL for logging out the user.
-    let logout_url = move || auth.logout_url();
+    let login_url = move || {
+        auth.with(|auth| {
+            auth
+                .get_unauthenticated()
+                .map(|unauthenticated| unauthenticated.login_url())
+        })
+    };
+  
+  // Generate the logout URL for logging out the user.
+    let logout_url = move || {
+        auth.get()
+            .authenticated()
+            .map(|authenticated| authenticated.logout_url())
+    };
 }
 ```
 
@@ -138,8 +148,8 @@ fn MyComponent() {
 
         // A more complex example with optional fallbacks for the loading and unauthenticated state
         <Authenticated
-            unauthenticated=move || view! { "this will only be renderd if the user is unauthenticated" }
-            loading=move || view! { "this will only be renderd if the library is still loading" }
+            unauthenticated=move || view! { "this will only be rendered if the user is unauthenticated" }
+            loading=move || view! { "this will only be rendered if the library is still loading" }
             >
                 "This will only be rendered if the user is authenticated"
         </Authenticated>

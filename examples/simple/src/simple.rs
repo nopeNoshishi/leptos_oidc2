@@ -16,8 +16,8 @@ pub fn App() -> impl IntoView {
         scope: Some("openid%20profile%20email".to_string()),
         audience: None,
     };
-    let auth_store: RwSignal<Auth> = RwSignal::new(Auth::default());
-    provide_context(auth_store);
+    let auth: RwSignal<Auth> = RwSignal::new(Auth::default());
+    provide_context(auth);
 
     let _ = Auth::init(parameters);
 
@@ -60,10 +60,10 @@ pub fn App() -> impl IntoView {
 
 #[component]
 pub fn AuthErrorPage() -> impl IntoView {
-    let auth_store = use_context::<RwSignal<Auth>>()
+    let auth = use_context::<RwSignal<Auth>>()
         .expect("AuthErrorContext: RwSignal<AuthStore> not present");
     let error_message = move || {
-        auth_store
+        auth
             .get()
             .error()
             .map(|error| format!("{error:?}"))
