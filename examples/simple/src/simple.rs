@@ -1,25 +1,13 @@
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, Link, Stylesheet, Title};
-use leptos_oidc::{Auth, AuthErrorContext, AuthLoaded, AuthLoading, AuthParameters, Authenticated, Challenge, LoginLink, LogoutLink};
+use leptos_oidc::{Auth, AuthErrorContext, AuthLoaded, AuthLoading, AuthParameters, AuthSignal, Authenticated, Challenge, LoginLink, LogoutLink};
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
+
 
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
-    let parameters = AuthParameters {
-        issuer: "http://localhost:8082/realms/master".to_string(),
-        client_id: "leptos-client".to_string(),
-        redirect_uri: "http://localhost:3000/profile".to_string(),
-        post_logout_redirect_uri: "http://localhost:3000".to_string(),
-        challenge: Challenge::S256,
-        scope: Some("openid%20profile%20email".to_string()),
-        audience: None,
-    };
-    let auth: RwSignal<Auth> = RwSignal::new(Auth::default());
-    provide_context(auth);
-
-    let _ = Auth::init(parameters);
 
     view! {
         <Stylesheet id="leptos" href="/pkg/main.css"/>
@@ -27,40 +15,62 @@ pub fn App() -> impl IntoView {
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
 
         <Router>
-            <AuthLoading><p>Authentication is loading</p></AuthLoading>
-            <AuthErrorContext><AuthErrorPage></AuthErrorPage></AuthErrorContext>
-
-            <h1>Leptos OIDC</h1>
-                <Routes fallback=Home>
-                    <Route path=path!("/") view=Home/>
-
-                    // This is an example route for your profile, it will render
-                    // loading if it's still loading, render unauthenticated if it's
-                    // unauthenticated, and it will render the children, if it's
-                    // authenticated
-                    <Route
-                        path=path!("/profile")
-                        view=|| {
-                            view! {
-                                <p>Profile page</p>
-                                <AuthLoaded fallback=Loading>
-                                    <Authenticated unauthenticated=Unauthenticated>
-                                        <Profile/>
-                                    </Authenticated>
-                                </AuthLoaded>
-                            }
-                        }
-                    />
-                </Routes>
+            <AppWithRouter/>
         </Router>
+    }
+}
 
+#[component]
+pub fn AppWithRouter() -> impl IntoView {
+    provide_meta_context();
+    let parameters = AuthParameters {
+        issuer: "http://localhost:8082/realms/master".to_string(),
+        client_id: "leptos-client".to_string(),
+        redirect_uri: "http://localhost:3000/profile".to_string(),
+        post_logout_redirect_uri: "http://localhost:3000/logout".to_string(),
+        challenge: Challenge::S256,
+        scope: Some("openid%20profile%20email".to_string()),
+        audience: None,
+    };
+    let auth: AuthSignal = RwSignal::new(Auth::default());
+    provide_context(auth);
+
+    let _ = Auth::init(parameters);
+
+    view! {
+        <AuthLoading><p>Authentication is loading</p></AuthLoading>
+        <AuthErrorContext><AuthErrorPage></AuthErrorPage></AuthErrorContext>
+
+        <h1>Leptos OIDC</h1>
+        <Routes fallback=Home>
+            <Route path=path!("/") view=Home/>
+            <Route path=path!("/logout") view=Logout/>
+
+            // This is an example route for your profile, it will render
+            // loading if it's still loading, render unauthenticated if it's
+            // unauthenticated, and it will render the children, if it's
+            // authenticated
+            <Route
+                path=path!("/profile")
+                view=|| {
+                    view! {
+                        <p>Profile page</p>
+                        <AuthLoaded fallback=Loading>
+                            <Authenticated unauthenticated=Unauthenticated>
+                                <Profile/>
+                            </Authenticated>
+                        </AuthLoaded>
+                    }
+                }
+            />
+        </Routes>
     }
 }
 
 
 #[component]
 pub fn AuthErrorPage() -> impl IntoView {
-    let auth = use_context::<RwSignal<Auth>>()
+    let auth = use_context::<AuthSignal>()
         .expect("AuthErrorContext: RwSignal<AuthStore> not present");
     let error_message = move || {
         auth
@@ -86,6 +96,18 @@ pub fn Home() -> impl IntoView {
 
     }
 }
+
+#[component]
+pub fn Logout() -> impl IntoView {
+    view! {
+        <Title text="Logout"/>
+        <h1>Logout</h1>
+        <p>You were successfully logged out!</p>
+        <a href="/">Home</a>
+
+    }
+}
+
 
 /// This will be rendered, if the authentication library is still loading
 #[component]

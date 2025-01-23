@@ -2,7 +2,7 @@ use crate::user::Claims;
 use leptos::either::Either;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, Link, Stylesheet, Title};
-use leptos_oidc::{Algorithm, Auth, AuthErrorContext, AuthLoaded, AuthLoading, AuthParameters, Authenticated, LoginLink, LogoutLink, ReloadButton, TokenData};
+use leptos_oidc::{Algorithm, Auth, AuthErrorContext, AuthLoaded, AuthLoading, AuthParameters, AuthSignal, Authenticated, LoginLink, LogoutLink, ReloadButton, TokenData};
 use leptos_router::components::{ProtectedRoute, Route, Router, Routes};
 use leptos_router::path;
 use serde::Deserialize;
@@ -33,7 +33,21 @@ pub struct AppGlobals {}
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
-    let auth: RwSignal<Auth> = RwSignal::new(Auth::default());
+
+    view! {
+        <Stylesheet id="leptos" href="/pkg/main.css"/>
+
+        <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
+
+        <Router>
+            <AppWithRouter/>
+        </Router>
+    }
+}
+
+#[component]
+pub fn AppWithRouter() -> impl IntoView {
+    let auth: AuthSignal = RwSignal::new(Auth::default());
     provide_context(auth);
 
     let app_globals: LocalResource<Result<AppGlobals, AppConfigError>> =
@@ -53,8 +67,7 @@ pub fn App() -> impl IntoView {
 
     let user = Signal::derive(move || {
         auth.with(|auth| {
-            auth
-                .authenticated()
+            auth.authenticated()
                 .map(|auth| auth.decoded_access_token::<Claims>(Algorithm::RS256, &["account"]))
                 .flatten()
         })
@@ -67,50 +80,42 @@ pub fn App() -> impl IntoView {
     };
 
     view! {
-        <Stylesheet id="leptos" href="/pkg/main.css"/>
-
-        <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
-
-        <Router>
-            <h1>Leptos OIDC</h1>
-                <Navigation/>
-                <DebugInfo/>
-                <ReloadButton/>
-                <Routes fallback=Home>
-                    <Route path=path!("/") view=Home/>
-                    <ProtectedRoute
-                        path=path!("/manager")
-                        view=Manager
-                        condition=manager
-                        redirect_path=|| "/"
-                    />
-                    <ProtectedRoute
-                        path=path!("/tester")
-                        view=Tester
-                        condition=tester
-                        redirect_path=|| "/"
-                    />
-                    <Route
-                        path=path!("/profile")
-                        view=|| {
-                            view! {
-                                <AppConfigLoaded>
-                                    <AuthLoaded>
-                                        <Authenticated unauthenticated=Unauthenticated>
-                                            <Profile/>
-                                        </Authenticated>
-                                    </AuthLoaded>
-                                </AppConfigLoaded>
-                            }
-                        }
-                    />
-                </Routes>
-        </Router>
-
-
+        <h1>Leptos OIDC</h1>
+        <Navigation/>
+        <DebugInfo/>
+        <ReloadButton/>
+        <Routes fallback=Home>
+            <Route path=path!("/") view=Home/>
+            <Route path=path!("/logout") view=Logout/>
+            <ProtectedRoute
+                path=path!("/manager")
+                view=Manager
+                condition=manager
+                redirect_path=|| "/"
+            />
+            <ProtectedRoute
+                path=path!("/tester")
+                view=Tester
+                condition=tester
+                redirect_path=|| "/"
+            />
+            <Route
+                path=path!("/profile")
+                view=|| {
+                    view! {
+                        <AppConfigLoaded>
+                            <AuthLoaded>
+                                <Authenticated unauthenticated=Unauthenticated>
+                                    <Profile/>
+                                </Authenticated>
+                            </AuthLoaded>
+                        </AppConfigLoaded>
+                    }
+                }
+            />
+        </Routes>
     }
 }
-
 
 #[component]
 pub fn AppConfigLoaded(
@@ -166,8 +171,7 @@ pub fn Manager() -> impl IntoView {
 
 #[component]
 pub fn AuthErrorPage() -> impl IntoView {
-    let auth =
-        use_context::<RwSignal<Auth>>().expect("AuthStore not initialized in error page");
+    let auth = use_context::<AuthSignal>().expect("AuthStore not initialized in error page");
     let error_message = move || auth.get().error().map(|err| format!("{err:?}"));
     view! {
         <h1>Error occurred</h1>
@@ -313,6 +317,17 @@ pub fn Unauthenticated() -> impl IntoView {
         <div><a href="/">Home</a></div>
         <LoginLink class="text-login">Sign in</LoginLink>
         // Your Unauthenticated Page
+    }
+}
+
+#[component]
+pub fn Logout() -> impl IntoView {
+    view! {
+        <Title text="Logout"/>
+        <h1>Logout</h1>
+        <p>You were successfully logged out!</p>
+        <a href="/">Home</a>
+
     }
 }
 

@@ -12,7 +12,7 @@ main() {
   REALM_NAME="master"
   CLIENT_ACCESS_TOKEN_LIFESPAN=300
   LEPTOS_CLIENT="leptos-client"
-  create_public_client "$LEPTOS_CLIENT" '"http://localhost:3000/profile", "http://localhost:3000/*"' "http://localhost:3000?destroy_session=true##http://localhost:3000/profile?destroy_session=true" 'http://localhost:3000' $CLIENT_ACCESS_TOKEN_LIFESPAN "$REALM_NAME"
+  create_public_client "$LEPTOS_CLIENT" '"http://localhost:3000/profile", "http://localhost:3000/*"' "http://localhost:3000?destroy_session=true##http://localhost:3000/logout?destroy_session=true##http://localhost:3000/profile?destroy_session=true" 'http://localhost:3000' $CLIENT_ACCESS_TOKEN_LIFESPAN "$REALM_NAME"
 
   # Create keycloak realm user groups
   create_realm_group testgroup "$REALM_NAME"

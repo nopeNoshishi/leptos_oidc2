@@ -76,14 +76,12 @@ required authentication parameters. You can use the `AuthParameters` struct
 to specify the OIDC endpoints, client ID, redirect URIs, and other relevant
 information.
 
-Please keep in mind that the `issuer` url needs to be the base url without the `/.well-known/openid-configuration` and without a trailing slash.
-A simple example may be found [here](examples/simple/src/simple).
+Please make sure that the `issuer` url is the base url without the `/.well-known/openid-configuration` and without a trailing slash.
+A simple example may be found [here](examples/simple/src/simple.rs).
 
 Note: Please keep in mind that the `Auth::init` needs to be `inside a Router`.
-The internal state is using `use_query`, which is only available inside a
+The internal state is using `use_query` and `use_navigate`, which is only available inside a
 `Router`. 
-Furthermore, the initializing of the authentication context needs to be awaited. 
-See the usage of `AuthInitialized` component in the [example](examples/simple/src/simple). 
 
 ### Generating Login and Logout URLs
 
@@ -97,7 +95,7 @@ use leptos_oidc::Auth;
 
 #[component]
 fn MyComponent() {
-    let auth = expect_context::<RwSignal<Auth>>();
+    let auth = expect_context::<AuthSignal>();
   
     // Generate the login URL to initiate the authentication process.
     let login_url = move || {
@@ -123,7 +121,6 @@ The library includes transparent components to conditionally render content
 based on the authentication state. These components simplify the user interface
 when dealing with authenticated and unauthenticated users.
 
-TODO: cleanup documentation
 ```rust
 use leptos::prelude::*;
 use leptos_oidc::Auth;

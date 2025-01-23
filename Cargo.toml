@@ -8,6 +8,7 @@ categories = ["web-programming", "api-bindings", "network-programming"]
 authors = [
     "Daniél Kerkmann <daniel@kerkmann.dev>",
     "Niklas Scheerhoorn <sinner1991@gmail.com>",
+    "Reimar Stier <reimar.stier@mercedes-benz.com>",
 ]
 license = "MIT"
 repository = "https://gitlab.com/kerkmann/leptos_oidc"

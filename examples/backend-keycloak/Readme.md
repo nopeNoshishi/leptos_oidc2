@@ -27,3 +27,17 @@ Its purpose is solely for testing.
   ```shell
   docker compose down --volumes
   ```
+
+## Provisioned data
+
+See also [provision script](provision.sh).
+
+* Leptos client: `leptos-client`
+* Users: Name and password are the same.
+
+| User     | Group        | Role        |
+|----------|--------------|-------------|
+| leptos   | testgroup    | testrole    |
+| testuser | testgroup    | testrole    |
+| manager  | managergroup | managerrole |
+| nobody   | -            | -           |

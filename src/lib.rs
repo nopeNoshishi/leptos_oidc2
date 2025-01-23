@@ -32,7 +32,8 @@ use codee::string::JsonSerdeCodec;
 use jsonwebtoken::jwk::Jwk;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use leptos_router::hooks::{use_navigate, use_query};
+use leptos::web_sys::Url;
+use leptos_router::hooks::{use_location, use_navigate, use_query};
 use leptos_router::NavigateOptions;
 
 use leptos_use::{
@@ -65,7 +66,7 @@ pub struct IssuerMetadata {
     configuration: Configuration,
     keys: Keys,
 }
-pub type TokenStorageResult = Result<Option<TokenStorage>, AuthError>;
+pub type AuthSignal = RwSignal<Auth>;
 
 const REFRESH_TOKEN_SECONDS_BEFORE: usize = 30;
 
@@ -165,17 +166,17 @@ impl Auth {
     /// # Panics
     ///
     /// The initialization panics if the user of this library
-    /// did construct the `RwSignal<Auth>` and provided it in the leptos context
+    /// did construct the `AuthSignal` and provided it in the leptos context
     ///
     /// ```
     /// use leptos::prelude::*;
-    /// use leptos_oidc::Auth;
-    /// let auth: RwSignal<Auth> = RwSignal::new(Auth::default());
+    /// use leptos_oidc::{Auth, AuthSignal};
+    /// let auth: AuthSignal = RwSignal::new(Auth::default());
     /// provide_context(auth);
     /// ```
     ///
     pub fn init(parameters: AuthParameters) {
-        let auth = use_context::<RwSignal<Auth>>().expect("RwSignal<Auth> not initialized.");
+        let auth = use_context::<AuthSignal>().expect("AuthSignal not initialized.");
         let fetch_resource = RwSignal::new(0);
         let pending_resource = RwSignal::new(true);
 
@@ -188,7 +189,7 @@ impl Auth {
             async move {
                 async fn init(
                     parameters: &AuthParameters,
-                    auth: RwSignal<Auth>,
+                    auth: AuthSignal,
                 ) -> Result<Auth, AuthError> {
                     let issuer = init_issuer_resource(parameters).await?;
                     let auth_result = init_auth(parameters, issuer.clone()).await?;
@@ -254,14 +255,33 @@ async fn init_issuer_resource(parameters: &AuthParameters) -> Result<IssuerMetad
     })
 }
 
+fn check_authentication_response_url(parameters: &AuthParameters) -> bool {
+    let location = use_location()
+        .pathname
+        .get()
+        .trim_end_matches('/')
+        .to_string();
+    let redirect_uri = Url::new(&parameters.redirect_uri)
+        .ok()
+        .map_or(String::new(), |url| url.pathname());
+    let logout_uri = Url::new(&parameters.post_logout_redirect_uri)
+        .ok()
+        .map_or(String::new(), |url| url.pathname());
+    redirect_uri == location || logout_uri == location
+}
+
 /// Initialize the auth resource, which will handle the entire state of the authentication.
 async fn init_auth(parameters: &AuthParameters, issuer: IssuerMetadata) -> Result<Auth, AuthError> {
     let (local_storage, set_local_storage, _remove_local_storage) =
         use_local_storage::<Option<TokenStorage>, JsonSerdeCodec>(LOCAL_STORAGE_KEY);
 
+    let is_authentication_response_url = check_authentication_response_url(parameters);
     let auth_response = use_query::<CallbackResponse>();
-    match auth_response.get_untracked() {
-        Ok(CallbackResponse::SuccessLogin(response)) => {
+    match (
+        is_authentication_response_url,
+        auth_response.get_untracked(),
+    ) {
+        (true, Ok(CallbackResponse::SuccessLogin(response))) => {
             use_navigate()(
                 &parameters.redirect_uri,
                 NavigateOptions {
@@ -292,7 +312,7 @@ async fn init_auth(parameters: &AuthParameters, issuer: IssuerMetadata) -> Resul
                 token_store: token_storage,
             }))
         }
-        Ok(CallbackResponse::SuccessLogout(response)) => {
+        (true, Ok(CallbackResponse::SuccessLogout(response))) => {
             use_navigate()(
                 &parameters.post_logout_redirect_uri,
                 NavigateOptions {
@@ -313,8 +333,8 @@ async fn init_auth(parameters: &AuthParameters, issuer: IssuerMetadata) -> Resul
                 issuer,
             }))
         }
-        Ok(CallbackResponse::Error(error)) => Ok(Auth::Error(AuthError::Provider(error))),
-        Err(_no_query_parameters) => {
+        (true, Ok(CallbackResponse::Error(error))) => Ok(Auth::Error(AuthError::Provider(error))),
+        (_, _) => {
             if let Some(token_store) = local_storage.get_untracked() {
                 if token_store.is_valid() {
                     Ok(Auth::Authenticated(AuthenticatedData {
@@ -344,7 +364,7 @@ async fn init_auth(parameters: &AuthParameters, issuer: IssuerMetadata) -> Resul
 fn create_handle_refresh_effect(
     parameters: AuthParameters,
     issuer: IssuerMetadata,
-    auth: RwSignal<Auth>,
+    auth: AuthSignal,
 ) {
     Effect::new(move || {
         if let Some(authenticated) = auth.get().authenticated() {
@@ -358,7 +378,7 @@ fn create_handle_refresh_effect(
                 move |(parameters, issuer, token_signal, refresh_token): (
                     AuthParameters,
                     IssuerMetadata,
-                    RwSignal<Auth>,
+                    AuthSignal,
                     String,
                 )| {
                     spawn_local(async move {
