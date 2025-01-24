@@ -118,7 +118,7 @@ pub enum Auth {
 
 impl Auth {
     #[must_use]
-    pub fn get_unauthenticated(&self) -> Option<UnauthenticatedData> {
+    pub fn unauthenticated(&self) -> Option<UnauthenticatedData> {
         match self {
             Auth::Unauthenticated(auth) => Some(auth.clone()),
             _ => None,

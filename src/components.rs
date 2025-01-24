@@ -79,7 +79,7 @@ pub fn LoginLink(
     let auth = use_context::<AuthSignal>().expect("AuthSignal not present in LoginLink");
     let login_url = move || {
         auth.with(|auth| {
-            auth.get_unauthenticated()
+            auth.unauthenticated()
                 .map(|unauthenticated| unauthenticated.login_url())
         })
     };

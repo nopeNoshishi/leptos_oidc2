@@ -101,7 +101,7 @@ fn MyComponent() {
     let login_url = move || {
         auth.with(|auth| {
             auth
-                .get_unauthenticated()
+                .unauthenticated()
                 .map(|unauthenticated| unauthenticated.login_url())
         })
     };
