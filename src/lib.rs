@@ -82,6 +82,12 @@ pub struct AuthParameters {
     pub challenge: Challenge,
     pub scope: Option<String>,
     pub audience: Option<String>,
+    #[serde(default = "default_bool::<false>")]
+    pub debug: bool,
+}
+
+pub const fn default_bool<const V: bool>() -> bool {
+    V
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
@@ -242,9 +248,10 @@ impl AwaitableAuth {
     ///
     /// # Errors
     ///
-    /// The authentication provider (issuer) may:
-    /// - not respond or return an error
-    /// - return parameters of the issuer may indicate an error
+    /// The authentication provider aka issuer may:
+    /// - not respond
+    /// - return an error
+    /// Return parameters of the issuer may indicate an error during the authentication flow.
     pub async fn loaded(&self) -> Result<AuthSignal, AuthError> {
         let resource = self.resource;
         resource.await
@@ -289,11 +296,21 @@ fn check_authentication_response_url(parameters: &AuthParameters) -> bool {
         .to_string();
     let redirect_uri = Url::new(&parameters.redirect_uri)
         .ok()
-        .map_or(String::new(), |url| url.pathname());
+        .map_or(String::new(), |url| {
+            url.pathname().trim_end_matches('/').to_string()
+        });
     let logout_uri = Url::new(&parameters.post_logout_redirect_uri)
         .ok()
-        .map_or(String::new(), |url| url.pathname());
-    redirect_uri == location || logout_uri == location
+        .map_or(String::new(), |url| {
+            url.pathname().trim_end_matches('/').to_string()
+        });
+
+    let response = redirect_uri == location || logout_uri == location;
+
+    if parameters.debug {
+        tracing::debug!("Location: {location}, redirect_uri: {redirect_uri}, logout_uri: {logout_uri}, check response parameters: {response}");
+    }
+    response
 }
 
 /// Initialize the auth resource, which will handle the entire state of the authentication.

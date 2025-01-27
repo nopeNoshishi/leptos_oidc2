@@ -1,2 +1,2 @@
 [serve]
-port = 3000  # default bind port 8080 is used by keycloak
+port = 3001  # default bind port 8080 is used by keycloak
