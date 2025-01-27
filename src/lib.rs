@@ -158,6 +158,11 @@ impl Auth {
     }
 }
 
+#[derive(Clone)]
+pub struct AwaitableAuth {
+    resource: LocalResource<Result<AuthSignal, AuthError>>,
+}
+
 impl Auth {
     /// Construct the `AuthSignal` that must be provided in the context
     #[must_use]
@@ -166,8 +171,7 @@ impl Auth {
     }
 
     /// Initializes a new `Auth` instance with the provided authentication
-    /// parameters. This function creates and returns an `Auth` enum
-    /// configured for authentication.
+    /// parameters.
     ///
     /// # Panics
     ///
@@ -181,7 +185,8 @@ impl Auth {
     /// provide_context(auth);
     /// ```
     ///
-    pub fn init(parameters: AuthParameters) {
+    #[allow(clippy::must_use_candidate)]
+    pub fn init(parameters: AuthParameters) -> AwaitableAuth {
         let auth = use_context::<AuthSignal>().expect("AuthSignal not initialized.");
         let fetch_resource = RwSignal::new(0);
         let pending_resource = RwSignal::new(true);
@@ -189,7 +194,7 @@ impl Auth {
         // Create local resource to fetch issuer metadata and handle the state of authentication
         // This is a local resource which integrates this asynchronous task in the reactive system of leptos
         // This is required to have the ability to use navigation (use_navigate()) depending on the query parameters.
-        LocalResource::new(move || {
+        let resource = LocalResource::new(move || {
             let _ = fetch_resource.get();
             let parameters = parameters.clone();
             async move {
@@ -228,6 +233,21 @@ impl Auth {
                 fetch_resource.set(count + 1);
             }
         });
+        AwaitableAuth { resource }
+    }
+}
+
+impl AwaitableAuth {
+    /// Await loading auth resource in case you want to address errors immediately
+    ///
+    /// # Errors
+    ///
+    /// The authentication provider (issuer) may:
+    /// - not respond or return an error
+    /// - return parameters of the issuer may indicate an error
+    pub async fn loaded(&self) -> Result<AuthSignal, AuthError> {
+        let resource = self.resource;
+        resource.await
     }
 }
 
