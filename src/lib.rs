@@ -82,12 +82,6 @@ pub struct AuthParameters {
     pub challenge: Challenge,
     pub scope: Option<String>,
     pub audience: Option<String>,
-    #[serde(default = "default_bool::<false>")]
-    pub debug: bool,
-}
-
-pub const fn default_bool<const V: bool>() -> bool {
-    V
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
@@ -219,11 +213,13 @@ impl Auth {
                     Ok(auth_result) => {
                         auth.set(auth_result.clone());
                         pending_resource.set(false);
+                        tracing::trace!("Authenticated");
                         Ok(auth)
                     }
                     Err(error) => {
                         auth.set(Auth::Error(error.clone()));
                         pending_resource.set(false);
+                        tracing::error!("Error during authentication: {error:?}");
                         Err(error)
                     }
                 }
@@ -251,7 +247,9 @@ impl AwaitableAuth {
     /// The authentication provider aka issuer may:
     /// - not respond
     /// - return an error
-    /// Return parameters of the issuer may indicate an error during the authentication flow.
+    /// - or return parameters may indicate an error during the authentication flow.
+    ///
+    /// Do not await the resource more than once. Otherwise, a `BorrowMut` error will be raised.
     pub async fn loaded(&self) -> Result<AuthSignal, AuthError> {
         let resource = self.resource;
         resource.await
@@ -291,7 +289,8 @@ async fn init_issuer_resource(parameters: &AuthParameters) -> Result<IssuerMetad
 fn check_authentication_response_url(parameters: &AuthParameters) -> bool {
     let location = use_location()
         .pathname
-        .get()
+        // Do not listen to path changes since this will rerun the entire local resource
+        .get_untracked()
         .trim_end_matches('/')
         .to_string();
     let redirect_uri = Url::new(&parameters.redirect_uri)
@@ -306,10 +305,7 @@ fn check_authentication_response_url(parameters: &AuthParameters) -> bool {
         });
 
     let response = redirect_uri == location || logout_uri == location;
-
-    if parameters.debug {
-        tracing::debug!("Location: {location}, redirect_uri: {redirect_uri}, logout_uri: {logout_uri}, check response parameters: {response}");
-    }
+    tracing::trace!("Location: {location}, redirect_uri: {redirect_uri}, logout_uri: {logout_uri}, check response parameters: {response}");
     response
 }
 
