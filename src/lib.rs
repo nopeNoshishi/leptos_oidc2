@@ -53,10 +53,10 @@ pub mod storage;
 mod unauthenticated;
 pub mod utils;
 
-use crate::authenticated::AuthenticatedData;
+pub use crate::authenticated::AuthenticatedData;
 pub use components::*;
 pub use error::AuthError;
-use unauthenticated::UnauthenticatedData;
+pub use unauthenticated::UnauthenticatedData;
 
 pub type Algorithm = jsonwebtoken::Algorithm;
 pub type TokenData<T> = jsonwebtoken::TokenData<T>;
