@@ -3,6 +3,10 @@
 This is containing every change, there are and there will be some bugs. But
 tackling them down and documenting them will hopefully help you out. :)
 
+## v0.8.1
+
+- Update dependencies to ensure compatibility with newer versions of Leptos 0.7.
+
 ## v0.8.0
 
 - Fork from this PR: [Update leptos-use, remove unused crate](https://gitlab.com/kerkmann/leptos_oidc/-/merge_requests/8/)
