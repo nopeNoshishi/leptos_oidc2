@@ -22,7 +22,7 @@
 * SOFTWARE.
 */
 
-use chrono::{NaiveDateTime, TimeDelta, Utc};
+use chrono::{Local, NaiveDateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::response::SuccessTokenResponse;
@@ -41,12 +41,21 @@ pub struct TokenStorage {
     pub refresh_expires_in: Option<NaiveDateTime>,
 }
 
+impl TokenStorage {
+    #[must_use]
+    pub fn is_valid(&self) -> bool {
+        self.expires_in >= Local::now().naive_utc()
+    }
+}
+
 /// Converts a `SuccessTokenResponse` into a `TokenStorage` structure.
 impl From<SuccessTokenResponse> for TokenStorage {
     fn from(value: SuccessTokenResponse) -> Self {
         Self {
             id_token: value.id_token,
             access_token: value.access_token,
+            // Backend will validate that token is valid: iat field (issued at in seconds since epoch) < now < exp field (expiration time in seconds since epoch) and token signature
+            // This shall memorize when to get a new access token
             expires_in: Utc::now().naive_utc()
                 + TimeDelta::try_seconds(value.expires_in).unwrap_or_default(),
             refresh_token: value.refresh_token,

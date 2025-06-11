@@ -1,0 +1,3 @@
+# Example
+
+Usage: `trunk serve`

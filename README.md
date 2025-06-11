@@ -24,6 +24,7 @@ manage user authentication and tokens.
 |---------------|---------------------------|
 | <= 0.3        | 0.5                       |
 | 0.4-0.7       | 0.6                       |
+| 0.8           | 0.7                       |
 
 ## Features
 
@@ -45,7 +46,7 @@ manage user authentication and tokens.
 ### Tested Backends with Example
 
 **leptos_oidc** was tested with various backends. This doesn't mean that other
-backends are not supported. Every backend which is support `oidc` should work.
+backends are not supported. Every backend which supports `oidc` should work.
 But feel free to ask for advice or give feedback!
 
 Tested backends:
@@ -54,10 +55,6 @@ Tested backends:
 
 You can find a setup guide for the backends under [docs/backends](docs/backends/README.md).
 
-#### Keycloak
-
-#### Rauthy
-
 ## Installation
 
 To use **leptos_oidc** in your Leptos-based application, add it as a dependency
@@ -65,10 +62,10 @@ in your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-leptos_oidc = "0.7"
+leptos_oidc = "0.8"
 ```
 
-Note: This needs at least `leptos v0.6`.
+Note: This needs at least `leptos v0.7`.
 
 ## Usage
 
@@ -79,148 +76,42 @@ required authentication parameters. You can use the `AuthParameters` struct
 to specify the OIDC endpoints, client ID, redirect URIs, and other relevant
 information.
 
-Please keep in mind that the `issuer` url needs to be the base url without the `/.well-known/openid-configuration`.
-
-```rust
-use leptos::*;
-use leptos_oidc::{Auth, AuthParameters};
-
-#[component]
-pub fn App() -> impl IntoView {
-    provide_meta_context();
-
-    view! {
-        <Stylesheet id="leptos" href="/pkg/main.css"/>
-
-        <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
-
-        <Router>
-            <AppWithRouter/>
-        </Router>
-    }
-}
-
-#[component]
-pub fn AppWithRouter() -> impl IntoView {
-    // Specify OIDC authentication parameters here.
-    // Note: This is an example for keycloak, please change it to your needs
-    let auth_parameters = AuthParameters {
-        issuer: "https://ENDPOINT/auth/v1".to_string(),
-        client_id: "CLIENT_ID".to_string(),
-        redirect_uri: "http://localhost:3000/profile".to_string(),
-        post_logout_redirect_uri: "http://localhost:3000/bye".to_string(),
-        challenge: Challenge::S256,
-        scope: Some("openid%20profile%20email"),
-        audience: None,
-    };
-    let auth = Auth::init(auth_parameters);
-
-    view! {
-        // This is an example for a navbar where you have a login and logout
-        // button, based on the state.
-        <div>
-            <Authenticated unauthenticated=move || {
-                view! {
-                    <LoginLink class="text-login">Sign in</LoginLink>
-                }
-            }>
-                <LogoutLink class="text-logut">Sign Out</LogoutLink>
-            </Authenticated>
-        </div>
-
-        <Routes>
-            <Route path="/" view=move || view! { <Home/> }/>
-
-            // This is an example route for your profile, it will render
-            // loading if it's still loading, render unauthenticated if it's
-            // unauthenticated and it will render the children, if it's
-            // authenticated
-            <Route
-                path="/profile"
-                view=move || {
-                    view! {
-                        <Authenticated
-                            loading=move || view! { <Loading/> }
-                            unauthenticated=move || view! { <Unauthenticated/> }
-                        >
-                            <Profile/>
-                        </Authenticated>
-                    }
-                }
-            />
-        </Routes>
-    }
-}
-
-#[component]
-pub fn Home() -> impl IntoView {
-    let auth = expect_context::<Auth>();
-
-    view! {
-        <Title text="Home"/>
-        <h1>Home</h1>
-
-        // Your Pome Page without authentication
-    }
-}
-
-/// This will be rendered, if the authentication library is still loading
-#[component]
-pub fn Loading() -> impl IntoView {
-    view! {
-        <Title text="Loading"/>
-        <h1>Loading</h1>
-
-        // Your Loading Page/Animation
-    }
-}
-
-/// This will be rendered, if the user is unauthenticated
-#[component]
-pub fn Unauthenticated() -> impl IntoView {
-    view! {
-        <Title text="Unauthenticated"/>
-        <h1>Unauthenticated</h1>
-
-        // Your Unauthenticated Page
-    }
-}
-
-/// This will be rendered, if the user is authentication
-#[component]
-pub fn Profile() -> impl IntoView {
-    view! {
-        <Title text="Profile"/>
-        <h1>Profile</h1>
-
-        // Your Profile Page
-    }
-}
-```
+Please make sure that the `issuer` url is the base url without the `/.well-known/openid-configuration` and without a trailing slash.
+A simple example may be found [here](examples/simple/src/simple.rs).
 
 Note: Please keep in mind that the `Auth::init` needs to be `inside a Router`.
-The internal state is using `use_query`, which is only available inside a
-`Router`.
+The internal state is using `use_query` and `use_navigate`, which is only available inside a
+`Router`. 
 
 ### Generating Login and Logout URLs
 
 **leptos_oidc** provides functions to generate login and logout URLs for your
 application. These URLs are used to redirect users to the OIDC provider for
-authentication and logout.
+authentication and logout. They are available once the authentication is initialized.
 
 ```rust
-use leptos::*;
+use leptos::prelude::*;
 use leptos_oidc::Auth;
 
 #[component]
 fn MyComponent() {
-    let auth = expect_context::<Auth>();
-
+    let auth = expect_context::<AuthSignal>();
+  
     // Generate the login URL to initiate the authentication process.
-    let login_url = move || auth.login_url();
-
-    // Generate the logout URL for logging out the user.
-    let logout_url = move || auth.logout_url();
+    let login_url = move || {
+        auth.with(|auth| {
+            auth
+                .unauthenticated()
+                .map(|unauthenticated| unauthenticated.login_url())
+        })
+    };
+  
+  // Generate the logout URL for logging out the user.
+    let logout_url = move || {
+        auth.get()
+            .authenticated()
+            .map(|authenticated| authenticated.logout_url())
+    };
 }
 ```
 
@@ -231,7 +122,7 @@ based on the authentication state. These components simplify the user interface
 when dealing with authenticated and unauthenticated users.
 
 ```rust
-use leptos::*;
+use leptos::prelude::*;
 use leptos_oidc::Auth;
 
 #[component]
@@ -250,10 +141,12 @@ fn MyComponent() {
 
         <Authenticated>"This will only be rendered if the user is authenticated"</Authenticated>
 
+        <AuthErrorContext>"This will only be rendered if there was an error during authentication"</AuthErrorContext>
+
         // A more complex example with optional fallbacks for the loading and unauthenticated state
         <Authenticated
-            unauthenticated=move || view! { "this will only be renderd if the user is unauthenticated" }
-            loading=move || view! { "this will only be renderd if the library is still loading" }
+            unauthenticated=move || view! { "this will only be rendered if the user is unauthenticated" }
+            loading=move || view! { "this will only be rendered if the library is still loading" }
             >
                 "This will only be rendered if the user is authenticated"
         </Authenticated>

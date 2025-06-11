@@ -21,13 +21,12 @@
 * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 * SOFTWARE.
 */
+#![allow(clippy::must_use_candidate)]
 
-use leptos::{
-    component, expect_context, view, AttributeValue, Children, ChildrenFn, IntoView, Show,
-    Transition, ViewFn,
-};
-
-use crate::Auth;
+use crate::{Auth, AuthSignal};
+use leptos::prelude::*;
+use leptos_router::hooks::use_navigate;
+use leptos_router::NavigateOptions;
 
 /// A transparent component representing authenticated user status.
 /// It provides a way to conditionally render its children based on the user's authentication status.
@@ -36,53 +35,35 @@ use crate::Auth;
 #[component(transparent)]
 pub fn Authenticated(
     children: ChildrenFn,
-    #[prop(optional, into)] loading: ViewFn,
     #[prop(optional, into)] unauthenticated: ViewFn,
 ) -> impl IntoView {
-    let auth = expect_context::<Auth>();
+    let auth =
+        use_context::<AuthSignal>().expect("AuthSignal not initialized in Authenticated component");
     let unauthenticated = move || unauthenticated.run();
-    let authenticated = move || auth.authenticated();
+    let authenticated = move || auth.get().is_authenticated();
+    let children = StoredValue::new(children);
 
     view! {
-        <Transition fallback=loading>
-            <Show
-                when=authenticated.clone()
-                fallback=unauthenticated.clone()
-                children=children.clone()
-            />
-        </Transition>
-    }
-}
-
-/// A transparent component representing the loading state of authentication.
-/// It allows rendering its children when the authentication process is loading, with an optional fallback view.
-#[must_use]
-#[component(transparent)]
-pub fn AuthLoading(
-    children: ChildrenFn,
-    #[prop(optional, into)] fallback: ViewFn,
-) -> impl IntoView {
-    let auth = expect_context::<Auth>();
-    let loading = move || auth.loading();
-
-    view! {
-        <Show when=loading fallback=fallback>
-            {children()}
+        <Show
+            when=authenticated
+            fallback=unauthenticated
+        >
+            { children.read_value()() }
         </Show>
     }
 }
 
-/// A transparent component representing the loaded state of authentication.
-/// It allows rendering its children when the authentication process has completed, with an optional fallback view.
 #[must_use]
 #[component(transparent)]
 pub fn AuthLoaded(children: ChildrenFn, #[prop(optional, into)] fallback: ViewFn) -> impl IntoView {
-    let auth = expect_context::<Auth>();
-    let loaded = move || !auth.loading();
+    let auth =
+        use_context::<AuthSignal>().expect("AuthSignal not initialized in AuthLoaded component");
+    let children = StoredValue::new(children);
+    let loaded = move || auth.get().is_loaded();
 
     view! {
-        <Show when=loaded fallback=fallback>
-            {children()}
+        <Show when=loaded fallback>
+            { children.read_value()() }
         </Show>
     }
 }
@@ -93,10 +74,15 @@ pub fn AuthLoaded(children: ChildrenFn, #[prop(optional, into)] fallback: ViewFn
 #[component(transparent)]
 pub fn LoginLink(
     children: Children,
-    #[prop(optional, into)] class: Option<AttributeValue>,
+    #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
-    let auth = expect_context::<Auth>();
-    let login_url = move || auth.login_url();
+    let auth = use_context::<AuthSignal>().expect("AuthSignal not present in LoginLink");
+    let login_url = move || {
+        auth.with(|auth| {
+            auth.unauthenticated()
+                .map(|unauthenticated| unauthenticated.login_url())
+        })
+    };
 
     view! {
         <a href=login_url class=class>
@@ -111,14 +97,75 @@ pub fn LoginLink(
 #[component(transparent)]
 pub fn LogoutLink(
     children: Children,
-    #[prop(optional, into)] class: Option<AttributeValue>,
+    #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
-    let auth = expect_context::<Auth>();
-    let logout_url = move || auth.logout_url();
+    let auth = use_context::<AuthSignal>().expect("AuthSignal not present in LogoutLink");
+    let logout_url = move || {
+        auth.get()
+            .authenticated()
+            .map(|authenticated| authenticated.logout_url())
+    };
 
     view! {
         <a href=logout_url class=class>
             {children()}
         </a>
+    }
+}
+
+#[must_use]
+#[component(transparent)]
+pub fn AuthLoading(children: ChildrenFn) -> impl IntoView {
+    let auth =
+        use_context::<AuthSignal>().expect("AuthSignal not initialized in AuthLoaded component");
+    let children = StoredValue::new(children);
+    let loading = move || auth.get().is_loading();
+
+    view! {
+        <Show when=loading fallback=|| ()>
+            { children.read_value()() }
+        </Show>
+    }
+}
+
+#[must_use]
+#[component(transparent)]
+pub fn AuthErrorContext(
+    children: ChildrenFn,
+    #[prop(optional, into)] fallback: ViewFn,
+) -> impl IntoView {
+    let auth =
+        use_context::<AuthSignal>().expect("AuthErrorContext: RwSignal<AuthSignal> not present");
+    let is_error = move || auth.get().error().is_some();
+
+    view! {
+        <Show when=is_error fallback=fallback >
+            { children() }
+        </Show>
+    }
+}
+
+#[must_use]
+#[component]
+pub fn ReloadButton(#[prop(optional, into)] path: Option<String>) -> impl IntoView {
+    let auth = use_context::<AuthSignal>().expect("AuthSignal not initialized in ReloadButton");
+    let navigate = use_navigate();
+    // Navigate to following address to trigger an error state, then use reload button:
+    //   http://localhost:3000/profile?error=foo&error_description=bla
+    // Destroy session:
+    //   http://localhost:3000/profile?destroy_session=true
+    let path = path.unwrap_or("/".to_string());
+
+    view! {
+        <button
+            on:click=move |_| {
+                // trigger reload of authentication
+                auth.set(Auth::Loading);
+                // remove query parameters by navigating back to home
+                navigate(&path, NavigateOptions::default());
+            }
+        >
+            "Reload"
+        </button>
     }
 }
