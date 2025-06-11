@@ -68,8 +68,7 @@ pub fn AppWithRouter() -> impl IntoView {
     let user = Signal::derive(move || {
         auth.with(|auth| {
             auth.authenticated()
-                .map(|auth| auth.decoded_access_token::<Claims>(Algorithm::RS256, &["account"]))
-                .flatten()
+                .and_then(|auth| auth.decoded_access_token::<Claims>(Algorithm::RS256, &["account"]))
         })
     });
     provide_context(user);
@@ -186,13 +185,11 @@ pub fn Navigation() -> impl IntoView {
         .expect("Navigation: user store should exist!");
     let manager = move || {
         user.get()
-            .map(|user| user.claims.has_role("managerrole"))
-            .unwrap_or(false)
+            .is_some_and(|user| user.claims.has_role("managerrole"))
     };
     let tester = move || {
         user.get()
-            .map(|user| user.claims.has_group("testgroup") || user.claims.has_role("managerrole"))
-            .unwrap_or(false)
+            .is_some_and(|user| user.claims.has_group("testgroup") || user.claims.has_role("managerrole"))
     };
 
     view! {
@@ -241,13 +238,11 @@ pub fn DebugInfo() -> impl IntoView {
 
     let manager = move || {
         user.get()
-            .map(|user| user.claims.has_role("managerrole"))
-            .unwrap_or(false)
+            .is_some_and(|user| user.claims.has_role("managerrole"))
     };
     let tester = move || {
         user.get()
-            .map(|user| user.claims.has_group("testgroup"))
-            .unwrap_or(false)
+            .is_some_and(|user| user.claims.has_group("testgroup"))
     };
 
     view! {

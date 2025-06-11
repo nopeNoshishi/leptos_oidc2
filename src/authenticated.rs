@@ -107,9 +107,8 @@ impl AuthenticatedData {
                 continue;
             };
 
-            match decode::<T>(token, &decoding_key, &validation) {
-                Ok(data) => return Some(data),
-                Err(_) => continue,
+            if let Ok(data) = decode::<T>(token, &decoding_key, &validation) {
+                return Some(data);
             }
         }
         None

@@ -44,10 +44,17 @@ doc:
 build_examples:
   stage: build_examples
   needs: ["test", "doc"]
+  before_script:
+    - rustup component add clippy
   script:
     - |
       cd examples/simple
       cargo build
+      cargo clippy -- -D warnings -D clippy::pedantic
+      cd -
+      cd examples/elaborate
+      cargo build
+      cargo clippy -- -D warnings -D clippy::pedantic
 
 build:
   stage: build
