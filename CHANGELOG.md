@@ -3,6 +3,11 @@
 This is containing every change, there are and there will be some bugs. But
 tackling them down and documenting them will hopefully help you out. :)
 
+## v0.9.0
+
+- Update dependencies for leptos [v0.8.0](https://github.com/leptos-rs/leptos/releases/tag/v0.8.0). 
+- Update keycloak version in [examples](examples/backend-keycloak/Dockerfile) to version 26.2.5
+
 ## v0.8.1
 
 - Update dependencies to ensure compatibility with newer versions of Leptos 0.7.

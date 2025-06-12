@@ -213,7 +213,7 @@ impl Auth {
                     Ok(auth_result) => {
                         auth.set(auth_result.clone());
                         pending_resource.set(false);
-                        tracing::trace!("Authenticated");
+                        tracing::trace!("Authentication signal updated.");
                         Ok(auth)
                     }
                     Err(error) => {

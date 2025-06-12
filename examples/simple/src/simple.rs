@@ -26,8 +26,8 @@ pub fn AppWithRouter() -> impl IntoView {
     let parameters = AuthParameters {
         issuer: "http://localhost:8082/realms/master".to_string(),
         client_id: "leptos-client".to_string(),
-        redirect_uri: "http://localhost:3001/profile".to_string(),
-        post_logout_redirect_uri: "http://localhost:3001/logout".to_string(),
+        redirect_uri: "http://localhost:3000/profile".to_string(),
+        post_logout_redirect_uri: "http://localhost:3000/logout".to_string(),
         challenge: Challenge::S256,
         scope: Some("openid%20profile%20email".to_string()),
         audience: None,
