@@ -1,4 +1,4 @@
-ARG KEYCLOAK_VERSION=26.1.0
+ARG KEYCLOAK_VERSION=26.2.5
 
 FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
 

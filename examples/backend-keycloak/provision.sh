@@ -31,12 +31,13 @@ main() {
   create_user nobody nobody "" "" "$REALM_NAME"
 
   # map roles and groups to access token
-    GROUP_SCOPE_NAME="groups"
-    create_client_scope "$GROUP_SCOPE_NAME" "default" "$REALM_NAME"
-    create_client_scope_groups "$GROUP_SCOPE_NAME" "$REALM_NAME"
-    add_client_scope_to_client "$LEPTOS_CLIENT" "$GROUP_SCOPE_NAME" "$REALM_NAME"
-    update_existing_client_scope_realm_roles "roles" "$REALM_NAME"
+  GROUP_SCOPE_NAME="groups"
+  create_client_scope "$GROUP_SCOPE_NAME" "default" "$REALM_NAME"
+  create_client_scope_groups "$GROUP_SCOPE_NAME" "$REALM_NAME"
+  add_client_scope_to_client "$LEPTOS_CLIENT" "$GROUP_SCOPE_NAME" "$REALM_NAME"
+  update_existing_client_scope_realm_roles "roles" "$REALM_NAME"
 
+  echo "DONE"
 }
 
 main

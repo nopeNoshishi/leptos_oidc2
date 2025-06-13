@@ -117,7 +117,7 @@ pub fn LogoutLink(
 #[component(transparent)]
 pub fn AuthLoading(children: ChildrenFn) -> impl IntoView {
     let auth =
-        use_context::<AuthSignal>().expect("AuthSignal not initialized in AuthLoaded component");
+        use_context::<AuthSignal>().expect("AuthSignal not initialized in AuthLoading component");
     let children = StoredValue::new(children);
     let loading = move || auth.get().is_loading();
 

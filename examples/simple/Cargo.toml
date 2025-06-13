@@ -7,10 +7,10 @@ version = "0.1.0"
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
-leptos = { version = "=0.7.8", features = ["csr"] }
-leptos_meta = "0.7.3"
+leptos = { version = "0.8.2", features = ["csr"] }
+leptos_meta = "0.8.2"
 leptos_oidc = { path = "../.." }
-leptos_router = "0.7.3"
+leptos_router = "0.8.2"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["ansi"]}
 tracing-web = "0.1.3"

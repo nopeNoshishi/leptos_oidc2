@@ -25,6 +25,7 @@ manage user authentication and tokens.
 | <= 0.3        | 0.5                       |
 | 0.4-0.7       | 0.6                       |
 | 0.8           | 0.7                       |
+| 0.9           | 0.8                       |
 
 ## Features
 
@@ -62,10 +63,10 @@ in your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-leptos_oidc = "0.8"
+leptos_oidc = "0.9"
 ```
 
-Note: This needs at least `leptos v0.7`.
+Note: This needs at least `leptos v0.8`.
 
 ## Usage
 
