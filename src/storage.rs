@@ -46,6 +46,11 @@ impl TokenStorage {
     pub fn is_valid(&self) -> bool {
         self.expires_in >= Local::now().naive_utc()
     }
+
+    pub fn is_refresh_token_valid(&self) -> bool {
+        self.refresh_expires_in
+            .is_some_and(|exp| exp >= Local::now().naive_utc())
+    }
 }
 
 /// Converts a `SuccessTokenResponse` into a `TokenStorage` structure.

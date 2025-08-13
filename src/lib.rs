@@ -382,12 +382,41 @@ async fn init_auth(parameters: &AuthParameters, issuer: IssuerMetadata) -> Resul
                         token_store,
                     }))
                 } else {
-                    set_local_storage.set(None);
-                    // remove_local_storage(); // does not seem to delete local storage
-                    Ok(Auth::Unauthenticated(UnauthenticatedData {
-                        parameters: parameters.clone(),
-                        issuer,
-                    }))
+                    if !token_store.is_refresh_token_valid() {
+                        set_local_storage.set(None);
+                        // remove_local_storage(); // does not seem to delete local storage
+                        return Ok(Auth::Unauthenticated(UnauthenticatedData {
+                            parameters: parameters.clone(),
+                            issuer,
+                        }));
+                    };
+
+                    match refresh_token_request(
+                        parameters,
+                        &issuer.configuration,
+                        token_store.refresh_token,
+                    )
+                    .await
+                    {
+                        Ok(token_store) => {
+                            set_local_storage.set(Some(token_store.clone()));
+
+                            Ok(Auth::Authenticated(AuthenticatedData {
+                                parameters: parameters.clone(),
+                                issuer,
+                                token_store,
+                            }))
+                        }
+                        Err(error) => {
+                            tracing::error!("Failed to refresh token storage: {}", error);
+                            set_local_storage.set(None);
+                            // remove_local_storage(); // does not seem to delete local storage
+                            Ok(Auth::Unauthenticated(UnauthenticatedData {
+                                parameters: parameters.clone(),
+                                issuer,
+                            }))
+                        }
+                    }
                 }
             } else {
                 Ok(Auth::Unauthenticated(UnauthenticatedData {
