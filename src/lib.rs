@@ -429,8 +429,8 @@ async fn handle_load_auth(
         }));
     }
 
-    // If the token is not valid, check if the refresh token is valid
-    if !token_store.is_refresh_token_valid() {
+    // If the refresh token is not valid, set unauthenticated
+    if !token_store.is_refresh_token_maybe_valid() {
         set_local_storage.set(None);
         // remove_local_storage(); // does not seem to delete local storage
         return Ok(Auth::Unauthenticated(UnauthenticatedData {
@@ -439,6 +439,7 @@ async fn handle_load_auth(
         }));
     }
 
+    // Try to refresh the token
     match refresh_token_request(parameters, &issuer.configuration, token_store.refresh_token).await
     {
         Ok(token_store) => {
