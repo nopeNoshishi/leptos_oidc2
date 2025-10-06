@@ -40,7 +40,7 @@ use leptos_use::{
     storage::{use_local_storage, use_session_storage},
     use_timeout_fn, UseTimeoutFnReturn,
 };
-use response::{CallbackResponse, SuccessCallbackResponse, TokenResponse};
+use response::{CallbackResponse, SuccessCallbackResponse, SuccessLogoutResponse, TokenResponse};
 use serde::{Deserialize, Serialize};
 use storage::{TokenStorage, CODE_VERIFIER_KEY, LOCAL_STORAGE_KEY};
 use utils::ParamBuilder;
@@ -321,80 +321,144 @@ async fn init_auth(parameters: &AuthParameters, issuer: IssuerMetadata) -> Resul
         auth_response.get_untracked(),
     ) {
         (true, Ok(CallbackResponse::SuccessLogin(response))) => {
-            use_navigate()(
-                &parameters.redirect_uri,
-                NavigateOptions {
-                    resolve: false,
-                    replace: true,
-                    scroll: true,
-                    state: leptos_router::location::State::new(None),
-                },
-            );
+            handle_success_login(
+                parameters,
+                &issuer,
+                local_storage,
+                set_local_storage,
+                &response,
+            )
+            .await
+        }
+        (true, Ok(CallbackResponse::SuccessLogout(response))) => Ok(handle_success_logout(
+            parameters,
+            &issuer,
+            set_local_storage,
+            &response,
+        )),
+        (true, Ok(CallbackResponse::Error(error))) => Ok(Auth::Error(AuthError::Provider(error))),
+        (_, _) => handle_load_auth(parameters, &issuer, local_storage, set_local_storage).await,
+    }
+}
 
-            if let Some(token_storage) = local_storage.get_untracked() {
-                if token_storage.is_valid() {
-                    return Ok(Auth::Authenticated(AuthenticatedData {
-                        parameters: parameters.clone(),
-                        issuer,
-                        token_store: token_storage,
-                    }));
-                }
-            }
+async fn handle_success_login(
+    parameters: &AuthParameters,
+    issuer: &IssuerMetadata,
+    local_storage: Signal<Option<TokenStorage>>,
+    set_local_storage: WriteSignal<Option<TokenStorage>>,
+    response: &SuccessCallbackResponse,
+) -> Result<Auth, AuthError> {
+    use_navigate()(
+        &parameters.redirect_uri,
+        NavigateOptions {
+            resolve: false,
+            replace: true,
+            scroll: true,
+            state: leptos_router::location::State::new(None),
+        },
+    );
 
-            let token_storage = fetch_token(parameters, &issuer.configuration, response).await?;
+    if let Some(token_storage) = local_storage.get_untracked() {
+        if token_storage.is_valid() {
+            return Ok(Auth::Authenticated(AuthenticatedData {
+                parameters: parameters.clone(),
+                issuer: issuer.clone(),
+                token_store: token_storage,
+            }));
+        }
+    }
 
-            set_local_storage.set(Some(token_storage.clone()));
+    let token_storage = fetch_token(parameters, &issuer.configuration, response.clone()).await?;
+
+    set_local_storage.set(Some(token_storage.clone()));
+
+    Ok(Auth::Authenticated(AuthenticatedData {
+        parameters: parameters.clone(),
+        issuer: issuer.clone(),
+        token_store: token_storage,
+    }))
+}
+
+fn handle_success_logout(
+    parameters: &AuthParameters,
+    issuer: &IssuerMetadata,
+    set_local_storage: WriteSignal<Option<TokenStorage>>,
+    response: &SuccessLogoutResponse,
+) -> Auth {
+    use_navigate()(
+        &parameters.post_logout_redirect_uri,
+        NavigateOptions {
+            resolve: false,
+            replace: true,
+            scroll: true,
+            state: leptos_router::location::State::new(None),
+        },
+    );
+    if response.destroy_session {
+        tracing::debug!("Logout: destroying session");
+        set_local_storage.set(None);
+        // remove_local_storage(); // does not seem to delete local storage
+    }
+
+    Auth::Unauthenticated(UnauthenticatedData {
+        parameters: parameters.clone(),
+        issuer: issuer.clone(),
+    })
+}
+
+async fn handle_load_auth(
+    parameters: &AuthParameters,
+    issuer: &IssuerMetadata,
+    local_storage: Signal<Option<TokenStorage>>,
+    set_local_storage: WriteSignal<Option<TokenStorage>>,
+) -> Result<Auth, AuthError> {
+    // If there is no local storage, set unauthenticated
+    let Some(token_store) = local_storage.get_untracked() else {
+        return Ok(Auth::Unauthenticated(UnauthenticatedData {
+            parameters: parameters.clone(),
+            issuer: issuer.clone(),
+        }));
+    };
+
+    // If the token is valid, set authenticated
+    if token_store.is_valid() {
+        return Ok(Auth::Authenticated(AuthenticatedData {
+            parameters: parameters.clone(),
+            issuer: issuer.clone(),
+            token_store,
+        }));
+    }
+
+    // If the refresh token is not valid, set unauthenticated
+    if !token_store.is_refresh_token_maybe_valid() {
+        set_local_storage.set(None);
+        // remove_local_storage(); // does not seem to delete local storage
+        return Ok(Auth::Unauthenticated(UnauthenticatedData {
+            parameters: parameters.clone(),
+            issuer: issuer.clone(),
+        }));
+    }
+
+    // Try to refresh the token
+    match refresh_token_request(parameters, &issuer.configuration, token_store.refresh_token).await
+    {
+        Ok(token_store) => {
+            set_local_storage.set(Some(token_store.clone()));
 
             Ok(Auth::Authenticated(AuthenticatedData {
                 parameters: parameters.clone(),
-                issuer,
-                token_store: token_storage,
+                issuer: issuer.clone(),
+                token_store,
             }))
         }
-        (true, Ok(CallbackResponse::SuccessLogout(response))) => {
-            use_navigate()(
-                &parameters.post_logout_redirect_uri,
-                NavigateOptions {
-                    resolve: false,
-                    replace: true,
-                    scroll: true,
-                    state: leptos_router::location::State::new(None),
-                },
-            );
-            if response.destroy_session {
-                tracing::debug!("Logout: destroying session");
-                set_local_storage.set(None);
-                // remove_local_storage(); // does not seem to delete local storage
-            }
-
+        Err(error) => {
+            tracing::error!("Failed to refresh token storage: {}", error);
+            set_local_storage.set(None);
+            // remove_local_storage(); // does not seem to delete local storage
             Ok(Auth::Unauthenticated(UnauthenticatedData {
                 parameters: parameters.clone(),
-                issuer,
+                issuer: issuer.clone(),
             }))
-        }
-        (true, Ok(CallbackResponse::Error(error))) => Ok(Auth::Error(AuthError::Provider(error))),
-        (_, _) => {
-            if let Some(token_store) = local_storage.get_untracked() {
-                if token_store.is_valid() {
-                    Ok(Auth::Authenticated(AuthenticatedData {
-                        parameters: parameters.clone(),
-                        issuer,
-                        token_store,
-                    }))
-                } else {
-                    set_local_storage.set(None);
-                    // remove_local_storage(); // does not seem to delete local storage
-                    Ok(Auth::Unauthenticated(UnauthenticatedData {
-                        parameters: parameters.clone(),
-                        issuer,
-                    }))
-                }
-            } else {
-                Ok(Auth::Unauthenticated(UnauthenticatedData {
-                    parameters: parameters.clone(),
-                    issuer,
-                }))
-            }
         }
     }
 }

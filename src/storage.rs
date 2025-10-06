@@ -46,6 +46,23 @@ impl TokenStorage {
     pub fn is_valid(&self) -> bool {
         self.expires_in >= Local::now().naive_utc()
     }
+
+    /// Checks if the refresh token is valid based on expiration information.
+    ///
+    /// This function returns `true` in the following cases:
+    /// - When `refresh_expires_in` is `None` (some OIDC providers don't specify refresh token expiration)
+    /// - When `refresh_expires_in` exists and the token has not yet expired
+    ///
+    /// ## OIDC Provider Behavior
+    /// Some OIDC providers do not include `refresh_expires_in` in their token response,
+    /// particularly when refresh tokens are configured to never expire or have very long
+    /// lifespans. In such cases, we assume the refresh token remains valid until the
+    /// provider explicitly rejects it during a refresh attempt.
+    #[must_use]
+    pub fn is_refresh_token_maybe_valid(&self) -> bool {
+        self.refresh_expires_in
+            .is_none_or(|exp| exp >= Local::now().naive_utc())
+    }
 }
 
 /// Converts a `SuccessTokenResponse` into a `TokenStorage` structure.
