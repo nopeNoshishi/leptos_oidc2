@@ -3,6 +3,12 @@
 This is containing every change, there are and there will be some bugs. But
 tackling them down and documenting them will hopefully help you out. :)
 
+## v0.9.1
+
+- Fork as `leptos_oidc2`, a community-maintained continuation of [leptos_oidc](https://gitlab.com/kerkmann/leptos_oidc).
+- Implement automatic access token refresh via refresh token flow, avoiding unnecessary re-authentication.
+- Handle OIDC providers that omit `refresh_expires_in`; treat refresh tokens as valid when expiration is not provided.
+
 ## v0.9.0
 
 - Update dependencies for leptos [v0.8.0](https://github.com/leptos-rs/leptos/releases/tag/v0.8.0). 
