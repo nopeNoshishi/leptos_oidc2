@@ -27,7 +27,7 @@ name = "leptos_oidc"
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "wasmbind"] }
 codee = { version = "0.3", features = ["json_serde"] }
-jsonwebtoken = { version = "9.3", default-features = false }
+jsonwebtoken = { version = "10.3", default-features = false }
 leptos = { version = "0.8", default-features = false }
 leptos-use = { version = "0.16", default-features = false, features = ["storage", "use_timeout_fn"] }
 leptos_router = { version = "0.8", default-features = false }
