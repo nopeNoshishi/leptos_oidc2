@@ -180,7 +180,7 @@ impl Auth {
     ///
     /// ```
     /// use leptos::prelude::*;
-    /// use leptos_oidc::{Auth, AuthSignal};
+    /// use leptos_oidc2::{Auth, AuthSignal};
     /// let auth: AuthSignal = Auth::signal();
     /// provide_context(auth);
     /// ```
