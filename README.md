@@ -1,13 +1,21 @@
-# Leptos OIDC Authentication
+# leptos_oidc2
 
-**leptos_oidc** is a utility library for handling OpenID Connect (OIDC)
+> **This crate is a community-maintained fork of [leptos_oidc](https://gitlab.com/kerkmann/leptos_oidc),
+> which is no longer actively maintained. All credits go to the original authors.**
+>
+> Maintained by [@nopeNoshishi](https://github.com/nopeNoshishi).
+> Bug reports and pull requests are welcome at [GitHub](https://github.com/nopeNoshishi/leptos_oidc2).
+
+---
+
+**leptos_oidc2** is a utility library for handling OpenID Connect (OIDC)
 authentication within the Leptos framework. It simplifies the integration of
 OIDC authentication flows with Leptos-based applications, making it easier to
 manage user authentication and tokens.
 
 ## Table of Contents
 
-- [Leptos compatibility](leptos-compatibility)
+- [Leptos compatibility](#leptos-compatibility)
 - [Features](#features)
 - [Missing Features](#missing-features)
 - [Tested Backends with Example](#tested-backends-with-example)
@@ -29,7 +37,7 @@ manage user authentication and tokens.
 
 ## Features
 
-**leptos_oidc** offers the following features:
+**leptos_oidc2** offers the following features:
 
 - Initialization of the OIDC authentication process.
 - Generation of login and logout URLs for redirecting users to OIDC providers (e.g., Keycloak).
@@ -46,7 +54,7 @@ manage user authentication and tokens.
 
 ### Tested Backends with Example
 
-**leptos_oidc** was tested with various backends. This doesn't mean that other
+**leptos_oidc2** was tested with various backends. This doesn't mean that other
 backends are not supported. Every backend which supports `oidc` should work.
 But feel free to ask for advice or give feedback!
 
@@ -58,12 +66,12 @@ You can find a setup guide for the backends under [docs/backends](docs/backends/
 
 ## Installation
 
-To use **leptos_oidc** in your Leptos-based application, add it as a dependency
+To use **leptos_oidc2** in your Leptos-based application, add it as a dependency
 in your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-leptos_oidc = "0.9"
+leptos_oidc2 = "0.9"
 ```
 
 Note: This needs at least `leptos v0.8`.
@@ -82,22 +90,22 @@ A simple example may be found [here](examples/simple/src/simple.rs).
 
 Note: Please keep in mind that the `Auth::init` needs to be `inside a Router`.
 The internal state is using `use_query` and `use_navigate`, which is only available inside a
-`Router`. 
+`Router`.
 
 ### Generating Login and Logout URLs
 
-**leptos_oidc** provides functions to generate login and logout URLs for your
+**leptos_oidc2** provides functions to generate login and logout URLs for your
 application. These URLs are used to redirect users to the OIDC provider for
 authentication and logout. They are available once the authentication is initialized.
 
 ```rust
 use leptos::prelude::*;
-use leptos_oidc::Auth;
+use leptos_oidc2::Auth;
 
 #[component]
 fn MyComponent() {
     let auth = expect_context::<AuthSignal>();
-  
+
     // Generate the login URL to initiate the authentication process.
     let login_url = move || {
         auth.with(|auth| {
@@ -106,7 +114,7 @@ fn MyComponent() {
                 .map(|unauthenticated| unauthenticated.login_url())
         })
     };
-  
+
   // Generate the logout URL for logging out the user.
     let logout_url = move || {
         auth.get()
@@ -124,7 +132,7 @@ when dealing with authenticated and unauthenticated users.
 
 ```rust
 use leptos::prelude::*;
-use leptos_oidc::Auth;
+use leptos_oidc2::Auth;
 
 #[component]
 fn MyComponent() {
@@ -157,9 +165,9 @@ fn MyComponent() {
 
 ### Refreshing Access Tokens
 
-This library is now capable of refreshing the `access_token` in the background. :)
+This library is now capable of refreshing the `access_token` in the background.
 
 ## License
 
-**leptos_oidc** is distributed under the [MIT License](https://opensource.org/licenses/MIT).
-For more information, see the [LICENSE](https://gitlab.com/kerkmann/leptos_oidc/blob/main/LICENSE) file.
+**leptos_oidc2** is distributed under the [MIT License](https://opensource.org/licenses/MIT).
+For more information, see the [LICENSE](https://github.com/nopeNoshishi/leptos_oidc2/blob/main/LICENSE) file.
