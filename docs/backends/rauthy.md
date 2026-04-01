@@ -31,14 +31,14 @@ It's not only mandatory to enable the `refresh_token flow`, it's also mandatory
 to append the `refresh_token` to the response. \
 ![enable refresh token response in rauthy](rauthy_enable_refresh_token_response.png){width=30%}
 
-## Setup leptos_oidc
+## Setup leptos_oidc2
 
 All you need to do is to setup everything with the init function. In this
 example the config would look like this:
 
 ```rust
 use leptos::*;
-use leptos_oidc::Auth;
+use leptos_oidc2::Auth;
 
 #[component]
 pub fn App() -> impl IntoView {
