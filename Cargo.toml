@@ -22,7 +22,7 @@ include = [
 ]
 
 [lib]
-name = "leptos_oidc"
+name = "leptos_oidc2"
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "wasmbind"] }
