@@ -29,7 +29,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "serd
 codee = { version = "0.3", features = ["json_serde"] }
 jsonwebtoken = { version = "10.3", default-features = false }
 leptos = { version = "0.8", default-features = false }
-leptos-use = { version = "0.16", default-features = false, features = ["storage", "use_timeout_fn"] }
+leptos-use = { version = "0.18", default-features = false, features = ["storage", "use_timeout_fn"] }
 leptos_router = { version = "0.8", default-features = false }
 oauth2 = { version = "5.0", default-features = false, features = ["pkce-plain"] }
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
