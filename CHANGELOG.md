@@ -3,6 +3,10 @@
 This is containing every change, there are and there will be some bugs. But
 tackling them down and documenting them will hopefully help you out. :)
 
+## v0.10.1
+
+- Fix: `jsonwebtoken` was declared with `default-features = false` but without `features = ["rust_crypto"]`, causing RS256 / ES256 / EdDSA algorithms to be unavailable at runtime. The `rust_crypto` feature is now explicitly enabled.
+
 ## v0.10.0
 
 Breaking changes:
