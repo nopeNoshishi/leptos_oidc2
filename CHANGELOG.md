@@ -3,6 +3,22 @@
 This is containing every change, there are and there will be some bugs. But
 tackling them down and documenting them will hopefully help you out. :)
 
+## v0.10.0
+
+Breaking changes:
+
+- Upgrade `jsonwebtoken` v9.3.1 → v10.3.0. The re-exported types `Algorithm`, `TokenData<T>`, and `Validation` may have API differences. Users who depend on these types directly should review the [jsonwebtoken v10 changelog](https://github.com/nickel-org/jsonwebtoken/blob/master/CHANGELOG.md).
+
+- Upgrade `reqwest` v0.12.28 → v0.13.2. Users who also depend on `reqwest` directly will need to upgrade to `0.13`.
+
+Other changes:
+
+- Upgrade `leptos-use` v0.16.3 → v0.18.3.
+- Fix: `[lib] name` was incorrectly set to `leptos_oidc` instead of `leptos_oidc2`, causing `leptos_oidc2::` to be unavailable as a module path.
+- Fix: doc-comment examples now correctly reference `leptos_oidc2::`.
+- Add: GitHub Actions CI workflow.
+- Add: Dependabot configuration.
+
 ## v0.9.1
 
 - Fork as `leptos_oidc2`, a community-maintained continuation of [leptos_oidc](https://gitlab.com/kerkmann/leptos_oidc).
