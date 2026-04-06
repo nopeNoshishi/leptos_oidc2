@@ -3,6 +3,12 @@
 This is containing every change, there are and there will be some bugs. But
 tackling them down and documenting them will hopefully help you out. :)
 
+## v0.10.2
+
+- Add: `rust_crypto` and `aws_lc_rs` feature flags to select the `jsonwebtoken` crypto backend. `rust_crypto` remains the default; no changes required for existing users.
+- **Breaking (if using `default-features = false`):** disabling default features now requires an explicit backend feature (`rust_crypto` or `aws_lc_rs`), otherwise the crate will fail to compile.
+- Add: CI matrix runs `lint`, `test`, and `build` jobs for both `rust_crypto` and `aws_lc_rs`.
+
 ## v0.10.1
 
 - Fix: `jsonwebtoken` was declared with `default-features = false` but without `features = ["rust_crypto"]`, causing RS256 / ES256 / EdDSA algorithms to be unavailable at runtime. The `rust_crypto` feature is now explicitly enabled.

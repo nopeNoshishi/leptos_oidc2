@@ -92,7 +92,20 @@ must be enabled at a time.
 | `aws_lc_rs`  | AWS libcrypto backend            |         |
 
 The default (`rust_crypto`) works on all platforms without additional system
-dependencies. Switch to `aws_lc_rs` when you need:
+dependencies.
+
+> **Note:** Exactly one backend must be enabled. If you set `default-features = false`
+> for any reason, you must explicitly add a backend feature — otherwise the crate will
+> fail to compile.
+
+To use `rust_crypto` explicitly (e.g. when disabling default features for other reasons):
+
+```toml
+[dependencies]
+leptos_oidc2 = { version = "0.10", default-features = false, features = ["rust_crypto"] }
+```
+
+To switch to the AWS LC backend:
 
 ```toml
 [dependencies]
