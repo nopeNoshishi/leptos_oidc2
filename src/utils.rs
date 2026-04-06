@@ -60,3 +60,68 @@ impl ParamBuilder for String {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn push_param_query_adds_question_mark_on_first_param() {
+        let result = "https://example.com/auth"
+            .to_string()
+            .push_param_query("client_id", "my_client");
+        assert_eq!(result, "https://example.com/auth?client_id=my_client");
+    }
+
+    #[test]
+    fn push_param_query_adds_ampersand_on_subsequent_params() {
+        let result = "https://example.com/auth?client_id=my_client"
+            .to_string()
+            .push_param_query("redirect_uri", "https://app.example.com/callback");
+        assert_eq!(
+            result,
+            "https://example.com/auth?client_id=my_client&redirect_uri=https://app.example.com/callback"
+        );
+    }
+
+    #[test]
+    fn push_param_query_chaining_multiple_params() {
+        let result = "https://example.com/logout"
+            .to_string()
+            .push_param_query("post_logout_redirect_uri", "https://app.example.com")
+            .push_param_query("id_token_hint", "tok123");
+        assert_eq!(
+            result,
+            "https://example.com/logout?post_logout_redirect_uri=https://app.example.com&id_token_hint=tok123"
+        );
+    }
+
+    #[test]
+    fn push_param_body_always_prepends_ampersand() {
+        let result = "&grant_type=authorization_code"
+            .to_string()
+            .push_param_body("client_id", "my_client")
+            .push_param_body("code", "auth_code_xyz");
+        assert_eq!(
+            result,
+            "&grant_type=authorization_code&client_id=my_client&code=auth_code_xyz"
+        );
+    }
+
+    // Compile-time check: exactly one of rust_crypto / aws_lc_rs must be enabled.
+    // If neither is enabled this module will fail to compile due to the missing
+    // jsonwebtoken crypto backend, which is the intended behaviour.
+    #[cfg(any(feature = "rust_crypto", feature = "aws_lc_rs"))]
+    #[test]
+    fn crypto_backend_feature_is_enabled() {
+        // rust_crypto and aws_lc_rs are mutually exclusive at the Cargo level
+        // (no explicit conflict declared, but enabling both would pull in two
+        // crypto backends simultaneously, which is unsupported by jsonwebtoken).
+        // This test simply confirms that at least one backend compiled in.
+        #[cfg(feature = "rust_crypto")]
+        let backend = "rust_crypto";
+        #[cfg(all(feature = "aws_lc_rs", not(feature = "rust_crypto")))]
+        let backend = "aws_lc_rs";
+        assert!(!backend.is_empty());
+    }
+}

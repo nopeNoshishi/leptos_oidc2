@@ -21,13 +21,18 @@ include = [
     "README.md",
 ]
 
+[features]
+default = ["rust_crypto"]
+rust_crypto = ["jsonwebtoken/rust_crypto"]
+aws_lc_rs = ["jsonwebtoken/aws_lc_rs"]
+
 [lib]
 name = "leptos_oidc2"
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "wasmbind"] }
 codee = { version = "0.3", features = ["json_serde"] }
-jsonwebtoken = { version = "10.3", default-features = false, features = ["rust_crypto"] }
+jsonwebtoken = { version = "10.3", default-features = false }
 leptos = { version = "0.8", default-features = false }
 leptos-use = { version = "0.18", default-features = false, features = ["storage", "use_timeout_fn"] }
 leptos_router = { version = "0.8", default-features = false }

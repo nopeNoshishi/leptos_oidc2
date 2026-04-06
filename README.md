@@ -15,16 +15,20 @@ manage user authentication and tokens.
 
 ## Table of Contents
 
-- [Leptos compatibility](#leptos-compatibility)
-- [Features](#features)
-- [Missing Features](#missing-features)
-- [Tested Backends with Example](#tested-backends-with-example)
-- [Usage](#usage)
-  - [Initialization](#initialization)
-  - [Generating Login and Logout URLs](#generating-login-and-logout-urls)
-  - [Conditional Rendering Components](#conditional-rendering-components)
-  - [Refreshing Access Tokens](#refreshing-access-tokens)
-- [License](#license)
+- [leptos\_oidc2](#leptos_oidc2)
+  - [Table of Contents](#table-of-contents)
+  - [Leptos compatibility](#leptos-compatibility)
+  - [Features](#features)
+    - [Missing Features](#missing-features)
+    - [Tested Backends with Example](#tested-backends-with-example)
+  - [Installation](#installation)
+    - [Crypto backend](#crypto-backend)
+  - [Usage](#usage)
+    - [Initialization and Example](#initialization-and-example)
+    - [Generating Login and Logout URLs](#generating-login-and-logout-urls)
+    - [Conditional Rendering Components](#conditional-rendering-components)
+    - [Refreshing Access Tokens](#refreshing-access-tokens)
+  - [License](#license)
 
 ## Leptos compatibility
 
@@ -75,6 +79,25 @@ leptos_oidc2 = "0.10"
 ```
 
 Note: This needs at least `leptos v0.8`.
+
+### Crypto backend
+
+`leptos_oidc2` uses [jsonwebtoken](https://crates.io/crates/jsonwebtoken) for JWT
+handling and exposes its crypto backend as a feature flag. Exactly one backend
+must be enabled at a time.
+
+| Feature      | Description                                      | Default |
+|--------------|--------------------------------------------------|---------|
+| `rust_crypto`| Pure-Rust backend via `RustCrypto`      | ✓       |
+| `aws_lc_rs`  | AWS libcrypto backend            |         |
+
+The default (`rust_crypto`) works on all platforms without additional system
+dependencies. Switch to `aws_lc_rs` when you need:
+
+```toml
+[dependencies]
+leptos_oidc2 = { version = "0.10", default-features = false, features = ["aws_lc_rs"] }
+```
 
 ## Usage
 
