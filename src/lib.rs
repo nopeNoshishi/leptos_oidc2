@@ -24,11 +24,11 @@
 
 #![allow(clippy::module_name_repetitions)]
 
-#[cfg(all(feature="rust_crypto", feature="aws_lc_rs"))]
+#[cfg(all(feature = "rust_crypto", feature = "aws_lc_rs"))]
 compile_error!(
     "Features `rust_crypto` and `aws_lc_rs` cannot be enabled at the same time. Please choose one of them."
 );
-#[cfg(not(any(feature="rust_crypto", feature="aws_lc_rs")))]
+#[cfg(not(any(feature = "rust_crypto", feature = "aws_lc_rs")))]
 compile_error!(
     "Either feature `rust_crypto` or `aws_lc_rs` must be enabled. Please choose one of them."
 );
