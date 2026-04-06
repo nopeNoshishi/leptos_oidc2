@@ -1,6 +1,6 @@
 [package]
 name = "leptos_oidc2"
-version = "0.10.1"
+version = "0.10.2"
 edition = "2021"
 description = "A Leptos utility library for simplified OpenID Connect (OIDC) authentication integration."
 keywords = ["leptos", "auth", "oidc", "openidconnect", "oauth"]
