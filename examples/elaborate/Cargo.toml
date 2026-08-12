@@ -7,7 +7,7 @@ version = "0.1.0"
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
-gloo-net = { version = "0.6.0", features = ["json"]}
+gloo-net = { version = "0.7.0", features = ["json"]}
 leptos = { version = "0.8.2", features = ["csr"] }
 leptos_meta = "0.8.2"
 leptos_oidc2 = { path = "../.." }
