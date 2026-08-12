@@ -3,6 +3,21 @@
 This is containing every change, there are and there will be some bugs. But
 tackling them down and documenting them will hopefully help you out. :)
 
+## v0.11.0
+
+Breaking changes:
+
+- Upgrade `jsonwebtoken` v10.3.0 → v11.0.0. This crate needed no source changes, but the re-exported types are affected. `Algorithm` is now `#[non_exhaustive]`, so exhaustive `match` expressions over it no longer compile. `Validation::insecure_disable_signature_validation` has been removed in favour of `jsonwebtoken::dangerous::insecure_decode`. `jsonwebtoken` also raises its MSRV to 1.88.0. See the [jsonwebtoken v11 changelog](https://github.com/Keats/jsonwebtoken/blob/master/CHANGELOG.md).
+
+Other changes:
+
+- Upgrade `leptos-use` v0.18.3 → v0.19.0. It still requires `leptos` ^0.8 and `codee` ^0.3, so no migration is needed. This release fixes `use_timeout_fn` cleanup when `start` is called repeatedly, which this crate relies on to schedule background token refreshes.
+- Upgrade `reqwest` v0.13.2 → v0.13.4, which strips sensitive headers on cross-scheme redirects and fixes CRL PEM parsing.
+- Upgrade `chrono` v0.4.44 → v0.4.45, `serde` v1.0.228 → v1.0.229, `serde_json` v1.0.149 → v1.0.151, and `thiserror` v2.0.18 → v2.0.20.
+- Refresh the lockfile, which also picks up `leptos` v0.8.20 and `leptos_router` v0.8.15.
+- Upgrade `gloo-net` v0.6 → v0.7 in the elaborate example.
+- CI: upgrade `actions/checkout` v6.0.2 → v7.0.1.
+
 ## v0.10.2
 
 - Add: `rust_crypto` and `aws_lc_rs` feature flags to select the `jsonwebtoken` crypto backend. `rust_crypto` remains the default; no changes required for existing users.

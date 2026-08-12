@@ -37,7 +37,7 @@ manage user authentication and tokens.
 | <= 0.3        | 0.5                       |
 | 0.4-0.7       | 0.6                       |
 | 0.8           | 0.7                       |
-| 0.9-0.10      | 0.8                       |
+| 0.9-0.11      | 0.8                       |
 
 ## Features
 
@@ -75,7 +75,7 @@ in your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-leptos_oidc2 = "0.10"
+leptos_oidc2 = "0.11"
 ```
 
 Note: This needs at least `leptos v0.8`.
@@ -102,14 +102,14 @@ To use `rust_crypto` explicitly (e.g. when disabling default features for other 
 
 ```toml
 [dependencies]
-leptos_oidc2 = { version = "0.10", default-features = false, features = ["rust_crypto"] }
+leptos_oidc2 = { version = "0.11", default-features = false, features = ["rust_crypto"] }
 ```
 
 To switch to the AWS LC backend:
 
 ```toml
 [dependencies]
-leptos_oidc2 = { version = "0.10", default-features = false, features = ["aws_lc_rs"] }
+leptos_oidc2 = { version = "0.11", default-features = false, features = ["aws_lc_rs"] }
 ```
 
 ## Usage
