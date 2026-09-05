@@ -51,7 +51,7 @@ use leptos_use::{
 };
 use response::{CallbackResponse, SuccessCallbackResponse, SuccessLogoutResponse, TokenResponse};
 use serde::{Deserialize, Serialize};
-use storage::{TokenStorage, CODE_VERIFIER_KEY, LOCAL_STORAGE_KEY};
+use storage::{TokenStorage, CODE_VERIFIER_KEY, LOCAL_STORAGE_KEY, OAUTH_STATE_KEY};
 use utils::ParamBuilder;
 
 mod authenticated;
@@ -330,6 +330,7 @@ async fn init_auth(parameters: &AuthParameters, issuer: IssuerMetadata) -> Resul
         auth_response.get_untracked(),
     ) {
         (true, Ok(CallbackResponse::SuccessLogin(response))) => {
+            validate_and_consume_state(Some(&response.state))?;
             handle_success_login(
                 parameters,
                 &issuer,
@@ -339,13 +340,21 @@ async fn init_auth(parameters: &AuthParameters, issuer: IssuerMetadata) -> Resul
             )
             .await
         }
-        (true, Ok(CallbackResponse::SuccessLogout(response))) => Ok(handle_success_logout(
-            parameters,
-            &issuer,
-            set_local_storage,
-            &response,
-        )),
-        (true, Ok(CallbackResponse::Error(error))) => Ok(Auth::Error(AuthError::Provider(error))),
+        (true, Ok(CallbackResponse::SuccessLogout(response))) => {
+            let (_, _, remove_oauth_state) =
+                use_session_storage::<Option<String>, JsonSerdeCodec>(OAUTH_STATE_KEY);
+            remove_oauth_state();
+            Ok(handle_success_logout(
+                parameters,
+                &issuer,
+                set_local_storage,
+                &response,
+            ))
+        }
+        (true, Ok(CallbackResponse::Error(error))) => {
+            validate_and_consume_state(error.state.as_deref())?;
+            Ok(Auth::Error(AuthError::Provider(error)))
+        }
         (_, _) => handle_load_auth(parameters, &issuer, local_storage, set_local_storage).await,
     }
 }
@@ -539,6 +548,48 @@ fn create_handle_refresh_effect(
     });
 }
 
+/// Evaluates the OAuth 2.0 CSRF state returned in the authorization callback
+/// against the value previously stored in session storage.
+///
+/// Returns `(result, should_consume_stored_state)`:
+///
+/// # Decision Matrix:
+/// - `callback = None`:
+///   - `stored = Some`: `(Err(CallbackStateMissing), true)` - consume stored state
+///   - `stored = None`: `(Err(CallbackStateMissing), false)` - nothing to consume
+/// - `callback = Some(cb)`:
+///   - `stored = None`: `(Err(StoredStateMissing), false)` - nothing to consume
+///   - `stored = Some(s)` and `s == cb`: `(Ok(()), true)` - matching state, consume
+///   - `stored = Some(s)` and `s != cb`: `(Err(StateMismatch), true)` - mismatch, consume
+///
+/// State values are never included in error messages to avoid leaking them.
+pub(crate) fn evaluate_callback_state(
+    stored: Option<&str>,
+    callback: Option<&str>,
+) -> (Result<(), AuthError>, bool) {
+    match (stored, callback) {
+        (Some(_), None) => (Err(AuthError::CallbackStateMissing), true),
+        (None, None) => (Err(AuthError::CallbackStateMissing), false),
+        (None, Some(_)) => (Err(AuthError::StoredStateMissing), false),
+        (Some(stored), Some(cb)) if stored == cb => (Ok(()), true),
+        (Some(_), Some(_)) => (Err(AuthError::StateMismatch), true),
+    }
+}
+
+/// Validates the OAuth 2.0 CSRF state from session storage and consumes it
+/// if appropriate according to the state lifecycle rules.
+fn validate_and_consume_state(callback_state: Option<&str>) -> Result<(), AuthError> {
+    let (stored_state, _, remove_oauth_state) =
+        use_session_storage::<Option<String>, JsonSerdeCodec>(OAUTH_STATE_KEY);
+    let stored = stored_state.get_untracked();
+
+    let (result, should_consume) = evaluate_callback_state(stored.as_deref(), callback_state);
+    if should_consume {
+        remove_oauth_state();
+    }
+    result
+}
+
 /// Asynchronous function for fetching an authentication token.
 /// This function is used to exchange an authorization code for an access token.
 async fn fetch_token(
@@ -551,10 +602,6 @@ async fn fetch_token(
         .push_param_body("client_id", &parameters.client_id)
         .push_param_body("redirect_uri", &parameters.redirect_uri)
         .push_param_body("code", &auth_response.code);
-
-    if let Some(state) = &auth_response.session_state {
-        body = body.push_param_body("state", state);
-    }
 
     let (code_verifier, _, remove_code_verifier) =
         use_session_storage::<Option<String>, JsonSerdeCodec>(CODE_VERIFIER_KEY);

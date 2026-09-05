@@ -30,6 +30,8 @@ use crate::response::SuccessTokenResponse;
 /// The key used for storing authentication token data in local storage.
 pub(crate) const LOCAL_STORAGE_KEY: &str = "auth";
 pub(crate) const CODE_VERIFIER_KEY: &str = "code_verifier";
+/// The key used for storing the OAuth 2.0 CSRF state token in session storage.
+pub(crate) const OAUTH_STATE_KEY: &str = "oauth_state";
 
 /// A structure representing the storage of authentication tokens.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
