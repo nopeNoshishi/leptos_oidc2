@@ -36,6 +36,9 @@ pub enum CallbackResponse {
 /// A structure representing a successful login callback response.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct SuccessCallbackResponse {
+    /// OAuth 2.0 CSRF state parameter — distinct from OIDC `session_state`.
+    pub state: String,
+    /// OIDC session identifier returned by the provider (provider-specific, optional).
     pub session_state: Option<String>,
     pub code: String,
 }
@@ -76,21 +79,30 @@ pub struct SuccessTokenResponse {
 pub struct ErrorResponse {
     pub error: String,
     pub error_description: String,
+    /// OAuth 2.0 CSRF state parameter returned in authorization error responses.
+    /// OAuth `state` is required on authorization callbacks; it is optional only for token endpoint error responses.
+    pub state: Option<String>,
 }
 
 /// A trait for converting parameters from a map to a structure for
 /// `SuccessCallbackResponse`.
+///
+/// Both `state` (OAuth CSRF token) and `code` are required.
+/// `session_state` (OIDC session identifier) is optional and kept separate.
 impl Params for SuccessCallbackResponse {
     fn from_map(map: &ParamsMap) -> Result<Self, ParamsError> {
-        if let (session_state, Some(code)) = (map.get("session_state"), map.get("code")) {
-            return Ok(SuccessCallbackResponse {
-                session_state: session_state.clone(),
-                code: code.clone(),
-            });
-        }
-        Err(ParamsError::MissingParam(
-            "Missing parameter 'code'".to_string(),
-        ))
+        let state = map
+            .get("state")
+            .ok_or_else(|| ParamsError::MissingParam("Missing required parameter 'state'".to_string()))?;
+        let code = map
+            .get("code")
+            .ok_or_else(|| ParamsError::MissingParam("Missing required parameter 'code'".to_string()))?;
+
+        Ok(SuccessCallbackResponse {
+            state: state.clone(),
+            session_state: map.get("session_state"),
+            code: code.clone(),
+        })
     }
 }
 
@@ -113,17 +125,20 @@ impl Params for SuccessLogoutResponse {
 /// `ErrorResponse`.
 impl Params for ErrorResponse {
     fn from_map(map: &ParamsMap) -> Result<Self, ParamsError> {
-        if let (Some(error), Some(error_description)) =
-            (map.get("error"), map.get("error_description"))
-        {
-            return Ok(ErrorResponse {
-                error: error.clone(),
-                error_description: error_description.clone(),
-            });
-        }
-        Err(ParamsError::MissingParam(
-            "Missing parameter 'error' and 'error_description'".to_string(),
-        ))
+        let error = map
+            .get("error")
+            .ok_or_else(|| ParamsError::MissingParam("Missing required parameter 'error'".to_string()))?;
+        let error_description = map
+            .get("error_description")
+            .ok_or_else(|| {
+                ParamsError::MissingParam("Missing required parameter 'error_description'".to_string())
+            })?;
+
+        Ok(ErrorResponse {
+            error: error.clone(),
+            error_description: error_description.clone(),
+            state: map.get("state"),
+        })
     }
 }
 

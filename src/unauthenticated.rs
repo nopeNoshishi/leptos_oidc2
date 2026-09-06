@@ -22,13 +22,13 @@
 * SOFTWARE.
 */
 
-use crate::storage::CODE_VERIFIER_KEY;
+use crate::storage::{CODE_VERIFIER_KEY, OAUTH_STATE_KEY};
 use crate::utils::ParamBuilder;
 use crate::{AuthParameters, Challenge, IssuerMetadata};
 use codee::string::JsonSerdeCodec;
 use leptos::prelude::{GetUntracked, Set};
 use leptos_use::storage::use_session_storage;
-use oauth2::{PkceCodeChallenge, PkceCodeVerifier};
+use oauth2::{CsrfToken, PkceCodeChallenge, PkceCodeVerifier};
 
 #[derive(Clone, Debug)]
 pub struct UnauthenticatedData {
@@ -92,6 +92,24 @@ impl UnauthenticatedData {
                 remove_code_verifier();
             }
         }
+
+        // Generate or reuse the OAuth 2.0 CSRF state token.
+        // Reuse pattern mirrors code_verifier: if a state is already stored in session
+        // storage for this tab (e.g. login_url() called twice without completing the
+        // flow), reuse the existing value so the stored state stays consistent with
+        // what was already sent to the IdP.
+        let (oauth_state, set_oauth_state, _) =
+            use_session_storage::<Option<String>, JsonSerdeCodec>(OAUTH_STATE_KEY);
+
+        let state_secret = if let Some(existing) = oauth_state.get_untracked() {
+            existing
+        } else {
+            let token = CsrfToken::new_random();
+            set_oauth_state.set(Some(token.secret().to_owned()));
+            token.secret().to_owned()
+        };
+
+        params = params.push_param_query("state", &state_secret);
 
         params
     }

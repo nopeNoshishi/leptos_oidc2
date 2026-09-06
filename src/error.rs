@@ -50,4 +50,16 @@ pub enum AuthError {
     /// An error indicating the inability to initialize local storage.
     #[error("unable to initialize local storage")]
     Storage,
+
+    /// No stored OAuth state was found; the session may have expired or been cleared.
+    #[error("invalid oauth state: no stored state found")]
+    StoredStateMissing,
+
+    /// The authorization callback state did not match the stored state (possible CSRF attempt).
+    #[error("invalid oauth state: state mismatch")]
+    StateMismatch,
+
+    /// No OAuth state was returned in the authorization callback.
+    #[error("invalid oauth state: missing state parameter in callback")]
+    CallbackStateMissing,
 }
